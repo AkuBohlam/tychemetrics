@@ -1,27 +1,41 @@
-name: TycheMetrics Auto Scanner
+name: Market Scanner
 
 on:
   schedule:
     - cron: '*/15 * * * *'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   scan:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Ambil Kode Repositori
-        uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
-      - name: Siapkan Python
-        uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: '3.10'
 
-      - name: Pasang Modul Pendukung
-        run: pip install requests yfinance
+      - name: Install Dependencies
+        run: |
+          pip install yfinance pandas requests
 
-      - name: Jalankan Scanner Pasar
+      - name: Run Market Scanner
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python scanner.py
+        run: |
+          python scanner.py
+
+      - name: Commit and Push Signals Update
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add signals.json
+          git commit -m "Auto-update signals.json [skip ci]" || echo "Tidak ada pembaruan sinyal"
+          git push
