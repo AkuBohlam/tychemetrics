@@ -2,7 +2,6 @@ name: TycheMetrics Auto Scanner
 
 on:
   schedule:
-    # Berjalan otomatis setiap 15 menit
     - cron: '*/15 * * * *'
   workflow_dispatch:
 
@@ -19,7 +18,7 @@ jobs:
           python-version: '3.11'
 
       - name: Pasang Modul Pendukung
-        run: pip install requests
+        run: pip install requests yfinance
 
       - name: Jalankan Scanner Pasar
         env:
