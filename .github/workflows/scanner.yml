@@ -1,0 +1,28 @@
+name: TycheMetrics Auto Scanner
+
+on:
+  schedule:
+    # Berjalan otomatis setiap 15 menit
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ambil Kode Repositori
+        uses: actions/checkout@v4
+
+      - name: Siapkan Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Pasang Modul Pendukung
+        run: pip install requests
+
+      - name: Jalankan Scanner Pasar
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python scanner.py
