@@ -78,17 +78,17 @@
     <div id="signalCardContent" class="glass-panel rounded-2xl p-4 border border-amber-500/30">
       <div class="flex items-center justify-between pb-3 border-b border-gray-800">
         <div>
-          <span id="txtSignalHeader" class="text-[10px] uppercase font-bold tracking-wider text-amber-400">Sinyal Radar Aktif</span>
+          <span id="txtSignalHeader" class="text-[10px] uppercase font-bold tracking-wider text-amber-400">Radar Pantau (~30 Menit)</span>
           <h2 id="activePairTitle" class="text-lg font-black text-white">XAU/USD (Gold)</h2>
         </div>
-        <span id="txtSignalAction" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-          REKOMENDASI: BUY
+        <span id="txtSignalAction" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30">
+          PANTAU (JANGAN ENTRY DULU)
         </span>
       </div>
 
       <div class="grid grid-cols-3 gap-2 my-3 text-center">
         <div class="bg-gray-900/80 p-2 rounded-xl border border-gray-800">
-          <p id="txtEntryLabel" class="text-[10px] text-gray-400">Entry Zone</p>
+          <p id="txtEntryLabel" class="text-[10px] text-gray-400">Target Area</p>
           <p id="valEntry" class="text-xs font-bold text-white mt-0.5">2652.50</p>
         </div>
         <div class="bg-gray-900/80 p-2 rounded-xl border border-gray-800">
@@ -104,10 +104,10 @@
       <!-- Kotak Alasan Sederhana (Ramah Pemula) -->
       <div class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 my-3">
         <p class="text-[10px] font-bold text-amber-400 uppercase flex items-center gap-1 mb-1">
-          <i class="fa-solid fa-lightbulb"></i> <span id="txtReasonTitle">Alasan Rekomendasi</span>
+          <i class="fa-solid fa-lightbulb"></i> <span id="txtReasonTitle">Petunjuk Disiplin</span>
         </p>
         <p id="valReason" class="text-xs text-gray-200 leading-relaxed">
-          Harga memantul di zona support kuat dan pembeli mulai mendominasi pasar kembali.
+          Harga sedang mendekati area pantau. Siapkan saldo & hitung lot Anda sekarang. Tunggu sinyal final di Telegram sebelum membuka posisi.
         </p>
       </div>
 
@@ -193,12 +193,12 @@
         proLockedTitle: 'Sinyal Khusus Akun Pro',
         proLockedDesc: 'Buka akses instrumen ini dengan kode akses VIP.',
         unlockProBtn: 'Aktifkan Kode VIP',
-        signalHeader: 'Sinyal Radar Aktif',
-        recommendBuy: 'REKOMENDASI: BUY',
-        entryLabel: 'Entry Zone',
+        signalHeader: 'Radar Pantau (~30 Menit)',
+        recommendAction: 'PANTAU (JANGAN ENTRY DULU)',
+        entryLabel: 'Target Area',
         slLabel: 'Stop Loss (SL)',
         tpLabel: 'Target (TP)',
-        reasonTitle: 'Alasan Rekomendasi',
+        reasonTitle: 'Petunjuk Disiplin',
         copyBtn: 'Salin Parameter Eksekusi (SL/TP)',
         calcTitle: 'Kalkulator Lot Cepat',
         balanceLabel: 'Saldo Modal (USD)',
@@ -222,12 +222,12 @@
         proLockedTitle: 'Pro Account Exclusive Signal',
         proLockedDesc: 'Unlock this instrument using your VIP code.',
         unlockProBtn: 'Redeem VIP Code',
-        signalHeader: 'Live Radar Signal',
-        recommendBuy: 'RECOMMENDATION: BUY',
-        entryLabel: 'Entry Zone',
+        signalHeader: 'Radar Watch (~30 Minutes)',
+        recommendAction: 'WATCH (DO NOT ENTER YET)',
+        entryLabel: 'Target Area',
         slLabel: 'Stop Loss (SL)',
         tpLabel: 'Target (TP)',
-        reasonTitle: 'Setup Reason',
+        reasonTitle: 'Trading Discipline',
         copyBtn: 'Copy Execution Parameters (SL/TP)',
         calcTitle: 'Quick Lot Calculator',
         balanceLabel: 'Account Balance (USD)',
@@ -255,8 +255,8 @@
         sl: '2648.50', 
         tp: '2662.50', 
         reason: {
-          id: 'Harga memantul di zona support kuat dan pembeli mulai mendominasi pasar kembali.',
-          en: 'Price rejected strong support zone and buyers are regaining control of the market.'
+          id: 'Harga sedang mendekati area pantau. Siapkan modal & kalkulator lot. Tunggu sinyal final sebelum membuka posisi.',
+          en: 'Price is approaching watch area. Prepare balance & lot calculator. Await final confirmation before entering.'
         },
         proOnly: false 
       },
@@ -267,8 +267,8 @@
         sl: '1.08000', 
         tp: '1.08600', 
         reason: {
-          id: 'Tren kenaikan berlanjut setelah koreksi sehat menyentuh rata-rata harga penting.',
-          en: 'Upward trend continues after a healthy pullback touching a key moving average.'
+          id: 'Mendekati level pantau 1.0820. Jangan buru-buru open posisi, amati respon candle di time frame kecil.',
+          en: 'Approaching watch level 1.0820. Do not rush, wait for candle confirmation on lower timeframes.'
         },
         proOnly: true 
       },
@@ -279,8 +279,8 @@
         sl: '1.29550', 
         tp: '1.30300', 
         reason: {
-          id: 'Penembusan level batas atas berhasil dan volume beli sesi Eropa sangat kuat.',
-          en: 'Breakout above resistance confirmed with strong European session buying volume.'
+          id: 'Harga bergerak menguji batas resisten 1.2980. Tunggu konfirmasi volume sebelum mengeksekusi posisi.',
+          en: 'Price testing resistance level 1.2980. Wait for confirmed buying volume before executing.'
         },
         proOnly: true 
       }
@@ -311,7 +311,7 @@
       document.getElementById('txtProLockedDesc').innerText = t.proLockedDesc;
       document.getElementById('txtUnlockProBtn').innerText = t.unlockProBtn;
       document.getElementById('txtSignalHeader').innerText = t.signalHeader;
-      document.getElementById('txtSignalAction').innerText = t.recommendBuy;
+      document.getElementById('txtSignalAction').innerText = t.recommendAction;
       document.getElementById('txtEntryLabel').innerText = t.entryLabel;
       document.getElementById('txtSLLabel').innerText = t.slLabel;
       document.getElementById('txtTPLabel').innerText = t.tpLabel;
