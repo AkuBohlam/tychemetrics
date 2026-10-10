@@ -66,7 +66,6 @@
 
   <!-- Active Signal Execution Card -->
   <div class="px-4 mt-4 relative">
-    <!-- Lock Overlay for Free Tier on Pro Pairs -->
     <div id="proLockOverlay" class="hidden absolute inset-0 z-20 flex-col items-center justify-center bg-gray-950/85 backdrop-blur-sm rounded-2xl p-4 text-center border border-amber-500/30">
       <i class="fa-solid fa-lock text-amber-400 text-2xl mb-2"></i>
       <h3 class="text-sm font-bold text-white mb-1" id="txtProLockedTitle">Sinyal Khusus Akun Pro</h3>
@@ -100,6 +99,16 @@
           <p id="txtTPLabel" class="text-[10px] text-emerald-400 font-semibold">Target (TP)</p>
           <p id="valTP" class="text-xs font-bold text-emerald-400 mt-0.5">2662.50</p>
         </div>
+      </div>
+
+      <!-- Kotak Alasan Sederhana (Ramah Pemula) -->
+      <div class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 my-3">
+        <p class="text-[10px] font-bold text-amber-400 uppercase flex items-center gap-1 mb-1">
+          <i class="fa-solid fa-lightbulb"></i> <span id="txtReasonTitle">Alasan Rekomendasi</span>
+        </p>
+        <p id="valReason" class="text-xs text-gray-200 leading-relaxed">
+          Harga memantul di zona support kuat dan pembeli mulai mendominasi pasar kembali.
+        </p>
       </div>
 
       <button onclick="copyTradeParams()" class="w-full py-2.5 bg-gray-800 hover:bg-gray-700 active:scale-98 text-xs font-bold text-white rounded-xl flex items-center justify-center gap-2 border border-gray-700">
@@ -189,6 +198,7 @@
         entryLabel: 'Entry Zone',
         slLabel: 'Stop Loss (SL)',
         tpLabel: 'Target (TP)',
+        reasonTitle: 'Alasan Rekomendasi',
         copyBtn: 'Salin Parameter Eksekusi (SL/TP)',
         calcTitle: 'Kalkulator Lot Cepat',
         balanceLabel: 'Saldo Modal (USD)',
@@ -217,6 +227,7 @@
         entryLabel: 'Entry Zone',
         slLabel: 'Stop Loss (SL)',
         tpLabel: 'Target (TP)',
+        reasonTitle: 'Setup Reason',
         copyBtn: 'Copy Execution Parameters (SL/TP)',
         calcTitle: 'Quick Lot Calculator',
         balanceLabel: 'Account Balance (USD)',
@@ -237,9 +248,42 @@
     };
 
     const pairData = {
-      'XAUUSD': { name: 'XAU/USD (Gold)', tv: 'FX_IDC:XAUUSD', entry: '2652.50', sl: '2648.50', tp: '2662.50', proOnly: false },
-      'EURUSD': { name: 'EUR/USD', tv: 'FX:EURUSD', entry: '1.08200', sl: '1.08000', tp: '1.08600', proOnly: true },
-      'GBPUSD': { name: 'GBP/USD', tv: 'FX:GBPUSD', entry: '1.29800', sl: '1.29550', tp: '1.30300', proOnly: true }
+      'XAUUSD': { 
+        name: 'XAU/USD (Gold)', 
+        tv: 'FX_IDC:XAUUSD', 
+        entry: '2652.50', 
+        sl: '2648.50', 
+        tp: '2662.50', 
+        reason: {
+          id: 'Harga memantul di zona support kuat dan pembeli mulai mendominasi pasar kembali.',
+          en: 'Price rejected strong support zone and buyers are regaining control of the market.'
+        },
+        proOnly: false 
+      },
+      'EURUSD': { 
+        name: 'EUR/USD', 
+        tv: 'FX:EURUSD', 
+        entry: '1.08200', 
+        sl: '1.08000', 
+        tp: '1.08600', 
+        reason: {
+          id: 'Tren kenaikan berlanjut setelah koreksi sehat menyentuh rata-rata harga penting.',
+          en: 'Upward trend continues after a healthy pullback touching a key moving average.'
+        },
+        proOnly: true 
+      },
+      'GBPUSD': { 
+        name: 'GBP/USD', 
+        tv: 'FX:GBPUSD', 
+        entry: '1.29800', 
+        sl: '1.29550', 
+        tp: '1.30300', 
+        reason: {
+          id: 'Penembusan level batas atas berhasil dan volume beli sesi Eropa sangat kuat.',
+          en: 'Breakout above resistance confirmed with strong European session buying volume.'
+        },
+        proOnly: true 
+      }
     };
 
     function renderChart(symbol) {
@@ -271,6 +315,7 @@
       document.getElementById('txtEntryLabel').innerText = t.entryLabel;
       document.getElementById('txtSLLabel').innerText = t.slLabel;
       document.getElementById('txtTPLabel').innerText = t.tpLabel;
+      document.getElementById('txtReasonTitle').innerText = t.reasonTitle;
       document.getElementById('txtCopyBtn').innerText = t.copyBtn;
       document.getElementById('txtCalcTitle').innerText = t.calcTitle;
       document.getElementById('txtBalanceLabel').innerText = t.balanceLabel;
@@ -284,6 +329,9 @@
       document.getElementById('txtCodeInputLabel').innerText = t.codeInputLabel;
       document.getElementById('txtBtnCancel').innerText = t.btnCancel;
       document.getElementById('txtBtnRedeem').innerText = t.btnRedeem;
+
+      const p = pairData[currentPairKey];
+      document.getElementById('valReason').innerText = p.reason[currentLang];
     }
 
     function toggleLang() {
@@ -336,6 +384,7 @@
       document.getElementById('valEntry').innerText = p.entry;
       document.getElementById('valSL').innerText = p.sl;
       document.getElementById('valTP').innerText = p.tp;
+      document.getElementById('valReason').innerText = p.reason[currentLang];
       
       checkProAccess();
       renderChart(p.tv);
