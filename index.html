@@ -9,6 +9,7 @@
   <style>
     body { background-color: #0b0f19; color: #e2e8f0; font-family: system-ui, -apple-system, sans-serif; }
     .glass-panel { background: rgba(17, 24, 39, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
+    .locked-blur { filter: blur(4px); pointer-events: none; user-select: none; }
   </style>
 </head>
 <body class="min-h-screen pb-16">
@@ -20,12 +21,22 @@
       <div>
         <h1 class="text-sm font-bold tracking-wide text-white leading-tight">TycheMetrics</h1>
         <p class="text-[10px] text-emerald-400 flex items-center gap-1">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Terminal Aktif
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span id="txtTerminalStatus">Terminal Aktif</span>
         </p>
       </div>
     </div>
-    <div id="vipBadge" class="text-[11px] px-2.5 py-1 rounded-full font-semibold border border-amber-500/40 text-amber-400 bg-amber-500/10 cursor-pointer" onclick="openVipModal()">
-      VIP: ALPHA2026
+    
+    <div class="flex items-center space-x-2">
+      <!-- Language Switcher -->
+      <button onclick="toggleLang()" class="text-xs px-2 py-1 rounded-lg border border-gray-700 bg-gray-900 text-gray-300 font-bold hover:text-white">
+        🌐 <span id="currentLangLabel">EN</span>
+      </button>
+
+      <!-- VIP / Plan Badge -->
+      <button id="vipBadge" onclick="openVipModal()" class="text-[11px] px-2.5 py-1 rounded-full font-semibold border border-gray-700 text-gray-300 bg-gray-900 transition-all">
+        Free Plan
+      </button>
     </div>
   </header>
 
@@ -35,11 +46,11 @@
       <button onclick="switchPair('XAUUSD', 'FX_IDC:XAUUSD')" id="tab-XAUUSD" class="pair-tab py-2 text-xs font-bold rounded-lg text-center bg-amber-500 text-gray-950">
         XAU/USD
       </button>
-      <button onclick="switchPair('EURUSD', 'FX:EURUSD')" id="tab-EURUSD" class="pair-tab py-2 text-xs font-bold rounded-lg text-center text-gray-400 hover:text-white">
-        EUR/USD
+      <button onclick="switchPair('EURUSD', 'FX:EURUSD')" id="tab-EURUSD" class="pair-tab py-2 text-xs font-bold rounded-lg text-center text-gray-400 hover:text-white flex items-center justify-center gap-1">
+        EUR/USD <span id="lock-EURUSD" class="text-[9px] px-1 bg-amber-500/20 text-amber-400 rounded border border-amber-500/30">PRO</span>
       </button>
-      <button onclick="switchPair('GBPUSD', 'FX:GBPUSD')" id="tab-GBPUSD" class="pair-tab py-2 text-xs font-bold rounded-lg text-center text-gray-400 hover:text-white">
-        GBP/USD
+      <button onclick="switchPair('GBPUSD', 'FX:GBPUSD')" id="tab-GBPUSD" class="pair-tab py-2 text-xs font-bold rounded-lg text-center text-gray-400 hover:text-white flex items-center justify-center gap-1">
+        GBP/USD <span id="lock-GBPUSD" class="text-[9px] px-1 bg-amber-500/20 text-amber-400 rounded border border-amber-500/30">PRO</span>
       </button>
     </div>
   </div>
@@ -52,35 +63,45 @@
   </div>
 
   <!-- Active Signal Execution Card -->
-  <div class="px-4 mt-4">
-    <div class="glass-panel rounded-2xl p-4 border border-amber-500/30">
+  <div class="px-4 mt-4 relative">
+    <!-- Lock Overlay for Free Tier on Pro Pairs -->
+    <div id="proLockOverlay" class="hidden absolute inset-0 z-20 flex-col items-center justify-center bg-gray-950/85 backdrop-blur-sm rounded-2xl p-4 text-center border border-amber-500/30">
+      <i class="fa-solid fa-lock text-amber-400 text-2xl mb-2"></i>
+      <h3 class="text-sm font-bold text-white mb-1" id="txtProLockedTitle">Sinyal Khusus Akun Pro</h3>
+      <p class="text-xs text-gray-400 mb-3" id="txtProLockedDesc">Buka akses instrumen ini dengan kode akses VIP.</p>
+      <button onclick="openVipModal()" class="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-gray-950 text-xs font-bold rounded-xl shadow-lg">
+        <span id="txtUnlockProBtn">Aktifkan Kode VIP</span>
+      </button>
+    </div>
+
+    <div id="signalCardContent" class="glass-panel rounded-2xl p-4 border border-amber-500/30">
       <div class="flex items-center justify-between pb-3 border-b border-gray-800">
         <div>
-          <span class="text-[10px] uppercase font-bold tracking-wider text-amber-400">Sinyal Radar Aktif</span>
+          <span id="txtSignalHeader" class="text-[10px] uppercase font-bold tracking-wider text-amber-400">Sinyal Radar Aktif</span>
           <h2 id="activePairTitle" class="text-lg font-black text-white">XAU/USD (Gold)</h2>
         </div>
-        <span class="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+        <span id="txtSignalAction" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
           REKOMENDASI: BUY
         </span>
       </div>
 
       <div class="grid grid-cols-3 gap-2 my-3 text-center">
         <div class="bg-gray-900/80 p-2 rounded-xl border border-gray-800">
-          <p class="text-[10px] text-gray-400">Entry Zone</p>
+          <p id="txtEntryLabel" class="text-[10px] text-gray-400">Entry Zone</p>
           <p id="valEntry" class="text-xs font-bold text-white mt-0.5">2652.50</p>
         </div>
         <div class="bg-gray-900/80 p-2 rounded-xl border border-gray-800">
-          <p class="text-[10px] text-rose-400 font-semibold">Stop Loss (SL)</p>
+          <p id="txtSLLabel" class="text-[10px] text-rose-400 font-semibold">Stop Loss (SL)</p>
           <p id="valSL" class="text-xs font-bold text-rose-400 mt-0.5">2648.50</p>
         </div>
         <div class="bg-gray-900/80 p-2 rounded-xl border border-gray-800">
-          <p class="text-[10px] text-emerald-400 font-semibold">Target (TP)</p>
+          <p id="txtTPLabel" class="text-[10px] text-emerald-400 font-semibold">Target (TP)</p>
           <p id="valTP" class="text-xs font-bold text-emerald-400 mt-0.5">2662.50</p>
         </div>
       </div>
 
       <button onclick="copyTradeParams()" class="w-full py-2.5 bg-gray-800 hover:bg-gray-700 active:scale-98 text-xs font-bold text-white rounded-xl flex items-center justify-center gap-2 border border-gray-700">
-        <i class="fa-regular fa-copy"></i> Salin Parameter Eksekusi (SL/TP)
+        <i class="fa-regular fa-copy"></i> <span id="txtCopyBtn">Salin Parameter Eksekusi (SL/TP)</span>
       </button>
     </div>
   </div>
@@ -89,36 +110,136 @@
   <div class="px-4 mt-4">
     <div class="glass-panel rounded-2xl p-4">
       <h3 class="text-xs font-bold text-gray-300 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-        <i class="fa-solid fa-calculator text-amber-400"></i> Kalkulator Lot Cepat
+        <i class="fa-solid fa-calculator text-amber-400"></i> <span id="txtCalcTitle">Kalkulator Lot Cepat</span>
       </h3>
       
       <div class="grid grid-cols-2 gap-2 mb-3">
         <div>
-          <label class="text-[10px] text-gray-400">Saldo Modal (USD)</label>
+          <label id="txtBalanceLabel" class="text-[10px] text-gray-400">Saldo Modal (USD)</label>
           <input id="accBalance" type="number" value="10" class="w-full mt-1 bg-gray-900 border border-gray-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-amber-500" oninput="calcLot()">
         </div>
         <div>
-          <label class="text-[10px] text-gray-400">Tipe Akun</label>
+          <label id="txtTypeLabel" class="text-[10px] text-gray-400">Tipe Akun</label>
           <select id="accType" class="w-full mt-1 bg-gray-900 border border-gray-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-amber-500" onchange="calcLot()">
-            <option value="cent">Cent Account (Aman 10 USD)</option>
-            <option value="standard">Standard Account</option>
+            <option value="cent" id="optCent">Cent Account (Aman 10 USD)</option>
+            <option value="standard" id="optStandard">Standard Account</option>
           </select>
         </div>
       </div>
 
       <div class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex justify-between items-center">
         <div>
-          <p class="text-[10px] text-amber-300">Rekomendasi Ukuran Lot</p>
-          <p class="text-[10px] text-gray-400">Risiko Maks: 1-2% Modal</p>
+          <p id="txtLotResultLabel" class="text-[10px] text-amber-300">Rekomendasi Ukuran Lot</p>
+          <p id="txtRiskRuleLabel" class="text-[10px] text-gray-400">Risiko Maks: 1-2% Modal</p>
         </div>
         <p id="lotResult" class="text-base font-extrabold text-amber-400">0.05 Lot Cent</p>
       </div>
     </div>
   </div>
 
+  <!-- Modal VIP Access -->
+  <div id="vipModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+    <div class="glass-panel rounded-2xl p-5 max-w-sm w-full border border-gray-700 shadow-2xl">
+      <div class="flex justify-between items-center mb-3">
+        <h3 class="text-sm font-bold text-white flex items-center gap-1.5">
+          <i class="fa-solid fa-crown text-amber-400"></i> <span id="txtModalTitle">Akses VIP TycheMetrics</span>
+        </h3>
+        <button onclick="closeVipModal()" class="text-gray-400 hover:text-white text-base">&times;</button>
+      </div>
+      
+      <p id="txtModalDesc" class="text-xs text-gray-300 mb-4">
+        Masukkan kode lisensi atau kode promo rahasia untuk membuka akses sinyal Pro seumur hidup.
+      </p>
+
+      <div class="mb-4">
+        <label id="txtCodeInputLabel" class="text-[10px] text-gray-400 uppercase font-semibold">Kode VIP / Promo</label>
+        <input id="vipCodeInput" type="text" placeholder="Contoh: ALPHA2026" class="w-full mt-1 bg-gray-900 border border-gray-700 rounded-xl p-2.5 text-xs text-white uppercase tracking-wider focus:outline-none focus:border-amber-500">
+        <p id="vipMsg" class="text-[11px] mt-1 hidden"></p>
+      </div>
+
+      <div class="flex gap-2">
+        <button onclick="closeVipModal()" class="w-1/2 py-2 text-xs font-semibold rounded-xl bg-gray-800 text-gray-300 hover:bg-gray-700" id="txtBtnCancel">
+          Tutup
+        </button>
+        <button onclick="redeemVipCode()" class="w-1/2 py-2 text-xs font-bold rounded-xl bg-amber-500 hover:bg-amber-400 text-gray-950 shadow-lg" id="txtBtnRedeem">
+          Aktifkan
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://s3.tradingview.com/tv.js"></script>
   <script>
+    // State Aplikasi
+    let currentLang = 'id';
+    let isPro = localStorage.getItem('tyche_is_pro') === 'true';
+    let currentPairKey = 'XAUUSD';
     let activeSymbol = "FX_IDC:XAUUSD";
+
+    const dict = {
+      id: {
+        terminalStatus: 'Terminal Aktif',
+        switchLang: 'EN',
+        proLockedTitle: 'Sinyal Khusus Akun Pro',
+        proLockedDesc: 'Buka akses instrumen ini dengan kode akses VIP.',
+        unlockProBtn: 'Aktifkan Kode VIP',
+        signalHeader: 'Sinyal Radar Aktif',
+        recommendBuy: 'REKOMENDASI: BUY',
+        entryLabel: 'Entry Zone',
+        slLabel: 'Stop Loss (SL)',
+        tpLabel: 'Target (TP)',
+        copyBtn: 'Salin Parameter Eksekusi (SL/TP)',
+        calcTitle: 'Kalkulator Lot Cepat',
+        balanceLabel: 'Saldo Modal (USD)',
+        typeLabel: 'Tipe Akun',
+        optCent: 'Cent Account (Aman 10 USD)',
+        optStandard: 'Standard Account',
+        lotResultLabel: 'Rekomendasi Ukuran Lot',
+        riskRuleLabel: 'Risiko Maks: 1-2% Modal',
+        modalTitle: 'Akses VIP TycheMetrics',
+        modalDesc: 'Masukkan kode lisensi atau kode promo rahasia untuk membuka akses sinyal Pro seumur hidup.',
+        codeInputLabel: 'Kode VIP / Promo',
+        btnCancel: 'Tutup',
+        btnRedeem: 'Aktifkan',
+        alertCopied: 'Parameter eksekusi berhasil disalin ke clipboard!',
+        vipSuccess: 'Kode VIP Berhasil! Akses Pro Seumur Hidup Aktif.',
+        vipInvalid: 'Kode tidak valid. Coba lagi.'
+      },
+      en: {
+        terminalStatus: 'Terminal Live',
+        switchLang: 'ID',
+        proLockedTitle: 'Pro Account Exclusive Signal',
+        proLockedDesc: 'Unlock this instrument using your VIP code.',
+        unlockProBtn: 'Redeem VIP Code',
+        signalHeader: 'Live Radar Signal',
+        recommendBuy: 'RECOMMENDATION: BUY',
+        entryLabel: 'Entry Zone',
+        slLabel: 'Stop Loss (SL)',
+        tpLabel: 'Target (TP)',
+        copyBtn: 'Copy Execution Parameters (SL/TP)',
+        calcTitle: 'Quick Lot Calculator',
+        balanceLabel: 'Account Balance (USD)',
+        typeLabel: 'Account Type',
+        optCent: 'Cent Account (Safe 10 USD)',
+        optStandard: 'Standard Account',
+        lotResultLabel: 'Recommended Lot Size',
+        riskRuleLabel: 'Max Risk: 1-2% Capital',
+        modalTitle: 'TycheMetrics VIP Access',
+        modalDesc: 'Enter your license or promo code to unlock lifetime Pro access.',
+        codeInputLabel: 'VIP / Promo Code',
+        btnCancel: 'Close',
+        btnRedeem: 'Activate',
+        alertCopied: 'Execution parameters copied to clipboard!',
+        vipSuccess: 'VIP Code Accepted! Lifetime Pro Activated.',
+        vipInvalid: 'Invalid code. Please try again.'
+      }
+    };
+
+    const pairData = {
+      'XAUUSD': { name: 'XAU/USD (Gold)', tv: 'FX_IDC:XAUUSD', entry: '2652.50', sl: '2648.50', tp: '2662.50', proOnly: false },
+      'EURUSD': { name: 'EUR/USD', tv: 'FX:EURUSD', entry: '1.08200', sl: '1.08000', tp: '1.08600', proOnly: true },
+      'GBPUSD': { name: 'GBP/USD', tv: 'FX:GBPUSD', entry: '1.29800', sl: '1.29550', tp: '1.30300', proOnly: true }
+    };
 
     function renderChart(symbol) {
       new TradingView.widget({
@@ -128,7 +249,7 @@
         "timezone": "Asia/Jakarta",
         "theme": "dark",
         "style": "1",
-        "locale": "id",
+        "locale": currentLang,
         "toolbar_bg": "#111827",
         "enable_publishing": false,
         "hide_side_toolbar": true,
@@ -137,25 +258,85 @@
       });
     }
 
-    renderChart(activeSymbol);
+    function applyTranslations() {
+      const t = dict[currentLang];
+      document.getElementById('txtTerminalStatus').innerText = t.terminalStatus;
+      document.getElementById('currentLangLabel').innerText = t.switchLang;
+      document.getElementById('txtProLockedTitle').innerText = t.proLockedTitle;
+      document.getElementById('txtProLockedDesc').innerText = t.proLockedDesc;
+      document.getElementById('txtUnlockProBtn').innerText = t.unlockProBtn;
+      document.getElementById('txtSignalHeader').innerText = t.signalHeader;
+      document.getElementById('txtSignalAction').innerText = t.recommendBuy;
+      document.getElementById('txtEntryLabel').innerText = t.entryLabel;
+      document.getElementById('txtSLLabel').innerText = t.slLabel;
+      document.getElementById('txtTPLabel').innerText = t.tpLabel;
+      document.getElementById('txtCopyBtn').innerText = t.copyBtn;
+      document.getElementById('txtCalcTitle').innerText = t.calcTitle;
+      document.getElementById('txtBalanceLabel').innerText = t.balanceLabel;
+      document.getElementById('txtTypeLabel').innerText = t.typeLabel;
+      document.getElementById('optCent').innerText = t.optCent;
+      document.getElementById('optStandard').innerText = t.optStandard;
+      document.getElementById('txtLotResultLabel').innerText = t.lotResultLabel;
+      document.getElementById('txtRiskRuleLabel').innerText = t.riskRuleLabel;
+      document.getElementById('txtModalTitle').innerText = t.modalTitle;
+      document.getElementById('txtModalDesc').innerText = t.modalDesc;
+      document.getElementById('txtCodeInputLabel').innerText = t.codeInputLabel;
+      document.getElementById('txtBtnCancel').innerText = t.btnCancel;
+      document.getElementById('txtBtnRedeem').innerText = t.btnRedeem;
+    }
 
-    const pairData = {
-      'XAUUSD': { name: 'XAU/USD (Gold)', tv: 'FX_IDC:XAUUSD', entry: '2652.50', sl: '2648.50', tp: '2662.50' },
-      'EURUSD': { name: 'EUR/USD', tv: 'FX:EURUSD', entry: '1.08200', sl: '1.08000', tp: '1.08600' },
-      'GBPUSD': { name: 'GBP/USD', tv: 'FX:GBPUSD', entry: '1.29800', sl: '1.29550', tp: '1.30300' }
-    };
+    function toggleLang() {
+      currentLang = currentLang === 'id' ? 'en' : 'id';
+      applyTranslations();
+      renderChart(pairData[currentPairKey].tv);
+    }
+
+    function updateVipUI() {
+      const badge = document.getElementById('vipBadge');
+      if (isPro) {
+        badge.innerText = "VIP PRO (Aktif)";
+        badge.className = "text-[11px] px-2.5 py-1 rounded-full font-bold border border-amber-500/50 text-amber-400 bg-amber-500/15";
+        document.getElementById('lock-EURUSD').classList.add('hidden');
+        document.getElementById('lock-GBPUSD').classList.add('hidden');
+      } else {
+        badge.innerText = "Free Plan";
+        badge.className = "text-[11px] px-2.5 py-1 rounded-full font-semibold border border-gray-700 text-gray-300 bg-gray-900";
+        document.getElementById('lock-EURUSD').classList.remove('hidden');
+        document.getElementById('lock-GBPUSD').classList.remove('hidden');
+      }
+      checkProAccess();
+    }
+
+    function checkProAccess() {
+      const p = pairData[currentPairKey];
+      const overlay = document.getElementById('proLockOverlay');
+      const content = document.getElementById('signalCardContent');
+
+      if (p.proOnly && !isPro) {
+        overlay.classList.remove('hidden');
+        overlay.classList.add('flex');
+        content.classList.add('locked-blur');
+      } else {
+        overlay.classList.add('hidden');
+        overlay.classList.remove('flex');
+        content.classList.remove('locked-blur');
+      }
+    }
 
     function switchPair(pairKey, tvSymbol) {
+      currentPairKey = pairKey;
       document.querySelectorAll('.pair-tab').forEach(b => {
-        b.className = "pair-tab py-2 text-xs font-bold rounded-lg text-center text-gray-400 hover:text-white";
+        b.className = "pair-tab py-2 text-xs font-bold rounded-lg text-center text-gray-400 hover:text-white flex items-center justify-center gap-1";
       });
-      document.getElementById('tab-' + pairKey).className = "pair-tab py-2 text-xs font-bold rounded-lg text-center bg-amber-500 text-gray-950";
+      document.getElementById('tab-' + pairKey).className = "pair-tab py-2 text-xs font-bold rounded-lg text-center bg-amber-500 text-gray-950 flex items-center justify-center gap-1";
       
       const p = pairData[pairKey];
       document.getElementById('activePairTitle').innerText = p.name;
       document.getElementById('valEntry').innerText = p.entry;
       document.getElementById('valSL').innerText = p.sl;
       document.getElementById('valTP').innerText = p.tp;
+      
+      checkProAccess();
       renderChart(p.tv);
     }
 
@@ -174,17 +355,49 @@
     }
 
     function copyTradeParams() {
+      const t = dict[currentLang];
       const p = document.getElementById('activePairTitle').innerText;
       const sl = document.getElementById('valSL').innerText;
       const tp = document.getElementById('valTP').innerText;
       const text = `TycheMetrics Execution:\nPair: ${p}\nSL: ${sl}\nTP: ${tp}`;
       navigator.clipboard.writeText(text);
-      alert('Parameter eksekusi berhasil disalin ke clipboard!');
+      alert(t.alertCopied);
     }
 
     function openVipModal() {
-      alert("Akses VIP Aktif: ALPHA2026. Seluruh fitur Pro terbuka permanen.");
+      document.getElementById('vipModal').classList.remove('hidden');
     }
+
+    function closeVipModal() {
+      document.getElementById('vipModal').classList.add('hidden');
+      document.getElementById('vipMsg').classList.add('hidden');
+      document.getElementById('vipCodeInput').value = '';
+    }
+
+    function redeemVipCode() {
+      const code = document.getElementById('vipCodeInput').value.trim().toUpperCase();
+      const msg = document.getElementById('vipMsg');
+      const t = dict[currentLang];
+
+      if (code === 'ALPHA2026') {
+        isPro = true;
+        localStorage.setItem('tyche_is_pro', 'true');
+        msg.innerText = t.vipSuccess;
+        msg.className = "text-[11px] mt-1 text-emerald-400 font-bold block";
+        updateVipUI();
+        setTimeout(() => {
+          closeVipModal();
+        }, 1200);
+      } else {
+        msg.innerText = t.vipInvalid;
+        msg.className = "text-[11px] mt-1 text-rose-400 font-semibold block";
+      }
+    }
+
+    // Inisialisasi awal
+    applyTranslations();
+    updateVipUI();
+    renderChart(activeSymbol);
   </script>
 </body>
 </html>
