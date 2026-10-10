@@ -1,5 +1,6 @@
 import os
 import requests
+import yfinance as yf
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
@@ -13,46 +14,35 @@ def send_alert(message):
     }
     requests.post(url, json=payload)
 
+def ambil_harga(simbol):
+    try:
+        data = yf.Ticker(simbol).history(period="1d", interval="1m")
+        if not data.empty:
+            return round(float(data['Close'].iloc[-1]), 4 if "USD=X" in simbol else 2)
+    except Exception:
+        pass
+    return None
+
 def run_market_scan():
-    # Daftar instrumen pantauan TycheMetrics
-    watchlist = [
-        {
-            "pair": "XAU/USD (Gold)",
-            "zone": "$2,652.50",
-            "sl": "$2,656.00 (35 Pips)",
-            "tp": "$2,642.50 (100 Pips)",
-            "rr": "1 : 2.8"
-        },
-        {
-            "pair": "EUR/USD",
-            "zone": "1.0820",
-            "sl": "1.0805 (15 Pips)",
-            "tp": "1.0865 (45 Pips)",
-            "rr": "1 : 3.0"
-        },
-        {
-            "pair": "GBP/USD",
-            "zone": "1.2980",
-            "sl": "1.2960 (20 Pips)",
-            "tp": "1.3040 (60 Pips)",
-            "rr": "1 : 3.0"
-        }
+    # Pemetaan ticker yfinance
+    instrumen = [
+        {"nama": "XAU/USD (Gold)", "ticker": "GC=F", "unit": "\$"},
+        {"nama": "EUR/USD", "ticker": "EURUSD=X", "unit": ""},
+        {"nama": "GBP/USD", "ticker": "GBPUSD=X", "unit": ""}
     ]
 
-    for item in watchlist:
-        pesan = (
-            f"🚨 *TYCHEMETRICS RADAR AKTIF*\n\n"
-            f"📊 *Instrumen:* {item['pair']}\n"
-            f"⚡ *Status:* Siap-Siap (Key Level Pantau)\n"
-            f"🎯 *Area:* {item['zone']}\n"
-            f"🛑 *Batas Rugi (SL):* {item['sl']}\n"
-            f"💰 *Target Untung (TP):* {item['tp']}\n"
-            f"⚖️ *R:R Ratio:* {item['rr']}\n\n"
-            f"🛡️ *Manajemen Risiko:* Gunakan kalkulator di aplikasi, maksimal risiko 1% modal."
-        )
-        send_alert(pesan)
+    laporan = ["⚡ *TYCHEMETRICS LIVE PRICE RADAR*\n"]
 
-    print("Seluruh sinyal instrumen berhasil dikirim!")
+    for item in instrumen:
+        harga = ambil_harga(item["ticker"])
+        harga_tampil = f"{item['unit']}{harga}" if harga else "Pasar Libur / Menunggu Data"
+        laporan.append(f"📊 *{item['nama']}*\n💰 Harga Terkini: `{harga_tampil}`\n")
+
+    laporan.append("🛡️ *Manajemen Risiko:* Selalu verifikasi konfirmasi sebelum entry.")
+    
+    pesan_final = "\n".join(laporan)
+    send_alert(pesan_final)
+    print("Data harga pasar berhasil dikirim!")
 
 if __name__ == "__main__":
     run_market_scan()
