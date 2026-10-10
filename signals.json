@@ -1,0 +1,15 @@
+{
+  "updated_at": "Standby - Menunggu Pembukaan Sesi Pasar",
+  "active_signal": {
+    "pair": "XAU/USD (Gold)",
+    "type": "BUY",
+    "entry": 2652.50,
+    "sl": 2648.50,
+    "tp": 2663.70,
+    "risk_pips": 40.0,
+    "reward_pips": 112.0,
+    "rr": "1 : 2.8",
+    "fib_zone": "Fibonacci 61.8% Golden Pocket",
+    "reason": "Struktur Makro Bullish di atas EMA 200. Pantulan terkonfirmasi di zona diskon Fibonacci dengan sinyal candle rejection."
+  }
+}
