@@ -67,15 +67,15 @@
       <div class="grid grid-cols-3 gap-2 my-3 text-center">
         <div class="bg-gray-900/80 p-2 rounded-xl border border-gray-800">
           <p class="text-[10px] text-gray-400">Entry Zone</p>
-          <p id="valEntry" class="text-xs font-bold text-white mt-0.5">\$2,652.50</p>
+          <p id="valEntry" class="text-xs font-bold text-white mt-0.5">2652.50</p>
         </div>
         <div class="bg-gray-900/80 p-2 rounded-xl border border-gray-800">
           <p class="text-[10px] text-rose-400 font-semibold">Stop Loss (SL)</p>
-          <p id="valSL" class="text-xs font-bold text-rose-400 mt-0.5">\$2,648.50</p>
+          <p id="valSL" class="text-xs font-bold text-rose-400 mt-0.5">2648.50</p>
         </div>
         <div class="bg-gray-900/80 p-2 rounded-xl border border-gray-800">
           <p class="text-[10px] text-emerald-400 font-semibold">Target (TP)</p>
-          <p id="valTP" class="text-xs font-bold text-emerald-400 mt-0.5">\$2,662.50</p>
+          <p id="valTP" class="text-xs font-bold text-emerald-400 mt-0.5">2662.50</p>
         </div>
       </div>
 
@@ -94,13 +94,13 @@
       
       <div class="grid grid-cols-2 gap-2 mb-3">
         <div>
-          <label class="text-[10px] text-gray-400">Saldo Modal (\$)</label>
+          <label class="text-[10px] text-gray-400">Saldo Modal (USD)</label>
           <input id="accBalance" type="number" value="10" class="w-full mt-1 bg-gray-900 border border-gray-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-amber-500" oninput="calcLot()">
         </div>
         <div>
           <label class="text-[10px] text-gray-400">Tipe Akun</label>
           <select id="accType" class="w-full mt-1 bg-gray-900 border border-gray-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-amber-500" onchange="calcLot()">
-            <option value="cent">Cent Account (Aman \$10)</option>
+            <option value="cent">Cent Account (Aman 10 USD)</option>
             <option value="standard">Standard Account</option>
           </select>
         </div>
@@ -140,7 +140,7 @@
     renderChart(activeSymbol);
 
     const pairData = {
-      'XAUUSD': { name: 'XAU/USD (Gold)', tv: 'FX_IDC:XAUUSD', entry: '\$2,652.50', sl: '\$2,648.50', tp: '\$2,662.50' },
+      'XAUUSD': { name: 'XAU/USD (Gold)', tv: 'FX_IDC:XAUUSD', entry: '2652.50', sl: '2648.50', tp: '2662.50' },
       'EURUSD': { name: 'EUR/USD', tv: 'FX:EURUSD', entry: '1.08200', sl: '1.08000', tp: '1.08600' },
       'GBPUSD': { name: 'GBP/USD', tv: 'FX:GBPUSD', entry: '1.29800', sl: '1.29550', tp: '1.30300' }
     };
