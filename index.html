@@ -3,326 +3,205 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>TycheMetrics | Quantitative Execution Terminal</title>
-  <link rel="icon" type="image/jpeg" href="logo.png.jpg">
-  <link rel="apple-touch-icon" href="logo.png.jpg">
+  <title>TycheMetrics | Institutional Quantitative Terminal</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-    body { background-color: #06090e; color: #cbd5e1; font-family: 'Plus Jakarta Sans', -apple-system, sans-serif; }
+    body { font-family: 'Inter', sans-serif; background-color: #0b0e14; color: #e2e8f0; }
     .mono { font-family: 'JetBrains Mono', monospace; }
-    .glass-card { background: rgba(13, 19, 32, 0.85); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.07); }
-    .locked-blur { filter: blur(5px); pointer-events: none; user-select: none; }
+    .gold-glow { text-shadow: 0 0 12px rgba(245, 158, 11, 0.4); }
   </style>
 </head>
-<body class="min-h-screen pb-12 selection:bg-amber-500/20 selection:text-amber-300">
+<body class="min-h-screen flex flex-col antialiased selection:bg-amber-500 selection:text-black pb-12">
 
-  <!-- Top Institutional Bar -->
-  <header class="glass-card sticky top-0 z-40 px-4 py-2.5 flex items-center justify-between border-b border-slate-800/80">
-    <div class="flex items-center space-x-2.5">
-      <img src="logo.png.jpg" alt="TycheMetrics Logo" class="w-8 h-8 rounded-lg object-contain border border-amber-500/20 shadow-inner">
-      <div>
-        <div class="flex items-center gap-1.5">
-          <span class="text-xs font-extrabold tracking-wider text-slate-100 uppercase">TYCHEMETRICS</span>
-          <span class="text-[9px] px-1.5 py-0.2 font-bold rounded bg-slate-800 text-slate-400 border border-slate-700">v2.4</span>
+  <!-- Top Navigation -->
+  <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur sticky top-0 z-50 px-4 py-3">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="h-8 w-8 rounded bg-gradient-to-tr from-amber-600 to-amber-400 flex items-center justify-center font-bold text-slate-950 mono text-lg shadow-lg shadow-amber-500/20">T</div>
+        <div>
+          <span class="font-bold text-base tracking-wider text-slate-100">TYCHE<span class="text-amber-400">METRICS</span></span>
+          <span class="hidden sm:inline-block ml-2 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-slate-800 text-slate-400 rounded border border-slate-700">Quant v2.4</span>
         </div>
-        <p class="text-[10px] text-emerald-400 font-medium flex items-center gap-1 leading-none mt-0.5">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span id="txtFeedStatus">LIVE ENGINE ACTIVE</span>
-        </p>
       </div>
-    </div>
-    
-    <div class="flex items-center space-x-2">
-      <!-- Language Selector -->
-      <button onclick="toggleLang()" class="text-[11px] font-bold px-2 py-1 rounded-lg border border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700">
-        🌐 <span id="currentLangLabel">ID</span>
-      </button>
 
-      <!-- Account / Plan Drawer Trigger -->
-      <button id="accountBtn" onclick="openAuthModal()" class="text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-slate-800 bg-slate-900/90 text-slate-200 flex items-center gap-1.5 hover:border-amber-500/40 transition-all">
-        <i class="fa-regular fa-user text-amber-400"></i>
-        <span id="txtAccountStatus">GUEST (FREE)</span>
-      </button>
+      <div class="flex items-center gap-2">
+        <button id="langToggle" class="px-2 py-1 text-xs mono font-semibold rounded bg-slate-900 border border-slate-700 text-slate-300 hover:border-amber-400 transition">EN / ID</button>
+        <button id="vipBadge" onclick="openLicenseModal()" class="px-3 py-1 text-xs mono font-bold uppercase rounded bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition flex items-center gap-1.5">
+          <span class="h-2 w-2 rounded-full bg-amber-400 animate-pulse"></span>
+          <span id="tierText">FREE TIER</span>
+        </button>
+      </div>
     </div>
   </header>
 
-  <!-- Instrument Selector Bar -->
-  <div class="px-4 mt-3">
-    <div class="grid grid-cols-3 gap-1.5 p-1 bg-slate-950/70 rounded-xl border border-slate-800/70">
-      <button onclick="switchPair('XAUUSD', 'FX_IDC:XAUUSD')" id="tab-XAUUSD" class="pair-tab py-2 text-xs font-bold rounded-lg text-center bg-amber-500 text-slate-950 shadow-sm transition-all">
-        XAU/USD
-      </button>
-      <button onclick="switchPair('EURUSD', 'FX:EURUSD')" id="tab-EURUSD" class="pair-tab py-2 text-xs font-bold rounded-lg text-center text-slate-400 hover:text-white flex items-center justify-center gap-1 transition-all">
-        EUR/USD <span id="lock-EURUSD" class="text-[9px] px-1 bg-amber-500/10 text-amber-400 rounded border border-amber-500/30">PRO</span>
-      </button>
-      <button onclick="switchPair('GBPUSD', 'FX:GBPUSD')" id="tab-GBPUSD" class="pair-tab py-2 text-xs font-bold rounded-lg text-center text-slate-400 hover:text-white flex items-center justify-center gap-1 transition-all">
-        GBP/USD <span id="lock-GBPUSD" class="text-[9px] px-1 bg-amber-500/10 text-amber-400 rounded border border-amber-500/30">PRO</span>
-      </button>
-    </div>
-  </div>
-
-  <!-- Live Market Chart Interface -->
-  <div class="px-4 mt-3">
-    <div class="glass-card rounded-2xl overflow-hidden p-0.5 shadow-2xl">
-      <div id="tradingview_chart" style="height: 350px; width: 100%;"></div>
-    </div>
-  </div>
-
-  <!-- Real-Time Signal Matrix -->
-  <div class="px-4 mt-3 relative">
-    <!-- Pro Lock Overlay -->
-    <div id="proLockOverlay" class="hidden absolute inset-0 z-20 flex-col items-center justify-center bg-slate-950/90 backdrop-blur-md rounded-2xl p-5 text-center border border-amber-500/20">
-      <div class="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-2.5">
-        <i class="fa-solid fa-lock text-amber-400 text-sm"></i>
-      </div>
-      <h3 class="text-xs font-bold text-slate-100 uppercase tracking-wider mb-1" id="txtProLockedTitle">PRO INSTRUMENT LOCKED</h3>
-      <p class="text-[11px] text-slate-400 max-w-xs mb-3.5" id="txtProLockedDesc">Unlock unlimited multi-asset execution access with an institutional license key.</p>
-      <button onclick="openAuthModal()" class="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-bold rounded-xl shadow-lg">
-        <span id="txtUnlockProBtn">ACTIVATE PRO ACCESS</span>
-      </button>
-    </div>
-
-    <!-- Signal Card -->
-    <div id="signalCardContent" class="glass-card rounded-2xl p-4 border border-slate-800">
-      <div class="flex items-center justify-between pb-3 border-b border-slate-800/80">
-        <div>
-          <span id="txtSignalHeader" class="text-[9px] uppercase font-bold tracking-widest text-amber-400">STAGE 1: RADAR RADIAL MONITOR</span>
-          <h2 id="activePairTitle" class="text-sm font-bold text-slate-100">XAU/USD (Gold)</h2>
-        </div>
-        <span id="txtSignalAction" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/30 tracking-wide">
-          WATCHLIST: AWAIT CONFIRMATION
+  <!-- Main Container -->
+  <main class="max-w-7xl mx-auto px-4 pt-6 flex-1 w-full space-y-6">
+    
+    <!-- System Status Bar -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div class="bg-slate-900/60 border border-slate-800 rounded-lg p-3">
+        <span class="text-[11px] text-slate-500 uppercase tracking-wider block">Market Session</span>
+        <span class="mono text-sm font-semibold text-slate-200 flex items-center gap-1.5 mt-0.5">
+          <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span> London / NY Active
         </span>
       </div>
-
-      <div class="grid grid-cols-3 gap-2 my-3 text-center">
-        <div class="bg-slate-950/80 p-2.5 rounded-xl border border-slate-800/80">
-          <p id="txtEntryLabel" class="text-[9px] uppercase font-semibold text-slate-400">Target Level</p>
-          <p id="valEntry" class="text-xs font-bold mono text-slate-100 mt-0.5">2652.50</p>
-        </div>
-        <div class="bg-slate-950/80 p-2.5 rounded-xl border border-slate-800/80">
-          <p id="txtSLLabel" class="text-[9px] uppercase font-semibold text-rose-400">Stop Limit (SL)</p>
-          <p id="valSL" class="text-xs font-bold mono text-rose-400 mt-0.5">2648.50</p>
-        </div>
-        <div class="bg-slate-950/80 p-2.5 rounded-xl border border-slate-800/80">
-          <p id="txtTPLabel" class="text-[9px] uppercase font-semibold text-emerald-400">Take Profit (TP)</p>
-          <p id="valTP" class="text-xs font-bold mono text-emerald-400 mt-0.5">2662.50</p>
-        </div>
+      <div class="bg-slate-900/60 border border-slate-800 rounded-lg p-3">
+        <span class="text-[11px] text-slate-500 uppercase tracking-wider block">Execution Engine</span>
+        <span class="mono text-sm font-semibold text-amber-400 mt-0.5 block">Fibonacci Golden 61.8%</span>
       </div>
-
-      <!-- Execution Reasoning & Education Box -->
-      <div class="bg-slate-950/60 border border-slate-800/90 rounded-xl p-3 my-2.5">
-        <p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mb-1">
-          <i class="fa-solid fa-chart-line text-amber-400"></i> <span id="txtReasonTitle">Setup Invalidation & Rationale</span>
-        </p>
-        <p id="valReason" class="text-[11px] text-slate-300 leading-relaxed">
-          Price is traversing toward critical H1 demand shelf. Order preparation required. Stand by for final execution trigger.
-        </p>
+      <div class="bg-slate-900/60 border border-slate-800 rounded-lg p-3">
+        <span class="text-[11px] text-slate-500 uppercase tracking-wider block">Weekly Free Quota</span>
+        <span id="quotaDisplay" class="mono text-sm font-semibold text-slate-200 mt-0.5 block">2 / 3 Used</span>
       </div>
-
-      <button onclick="copyTradeParams()" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 active:scale-98 text-xs font-semibold text-slate-200 rounded-xl flex items-center justify-center gap-2 border border-slate-700/80 transition-all">
-        <i class="fa-regular fa-clone text-slate-400"></i> <span id="txtCopyBtn">Copy Parameters to Clipboard</span>
-      </button>
-    </div>
-  </div>
-
-  <!-- Position & Capital Risk Matrix -->
-  <div class="px-4 mt-3">
-    <div class="glass-card rounded-2xl p-4 border border-slate-800">
-      <div class="flex items-center justify-between mb-3">
-        <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-          <i class="fa-solid fa-shield-halved text-amber-400"></i> <span id="txtCalcTitle">Capital Risk Sizer</span>
-        </h3>
-        <span class="text-[9px] text-slate-500 font-mono">STRICT: 1.0% MAX RISK</span>
-      </div>
-      
-      <div class="grid grid-cols-2 gap-2 mb-3">
-        <div>
-          <label id="txtBalanceLabel" class="text-[9px] uppercase font-bold text-slate-400">Account Equity (USD)</label>
-          <input id="accBalance" type="number" value="10" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs mono text-slate-100 focus:outline-none focus:border-amber-500" oninput="calcLot()">
-        </div>
-        <div>
-          <label id="txtTypeLabel" class="text-[9px] uppercase font-bold text-slate-400">Account Class</label>
-          <select id="accType" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 focus:outline-none focus:border-amber-500" onchange="calcLot()">
-            <option value="cent" id="optCent">Micro / Cent (Min \$10)</option>
-            <option value="standard" id="optStandard">Standard Institutional</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3 flex justify-between items-center">
-        <div>
-          <p id="txtLotResultLabel" class="text-[10px] font-semibold text-amber-300">Optimal Position Size</p>
-          <p id="txtRiskRuleLabel" class="text-[9px] text-slate-500">Auto-calibrated for risk variance</p>
-        </div>
-        <p id="lotResult" class="text-sm font-bold mono text-amber-400">0.05 Micro Lots</p>
+      <div class="bg-slate-900/60 border border-slate-800 rounded-lg p-3">
+        <span class="text-[11px] text-slate-500 uppercase tracking-wider block">Cloud Radar Cron</span>
+        <span class="mono text-sm font-semibold text-emerald-400 mt-0.5 block">15m Auto Sync</span>
       </div>
     </div>
-  </div>
 
-  <!-- Custom Account & VIP Drawer Modal -->
-  <div id="authModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
-    <div class="glass-card rounded-2xl p-5 max-w-sm w-full border border-slate-800 shadow-2xl relative">
-      <button onclick="closeAuthModal()" class="absolute top-4 right-4 text-slate-500 hover:text-slate-300 text-sm">&times;</button>
-      
-      <div class="flex items-center gap-2 mb-3">
-        <div class="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">
-          <i class="fa-solid fa-id-card-clip text-amber-400 text-xs"></i>
+    <!-- Workspace Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- Left Column: TradingView Chart (Optimized Mobile Height & Interaction) -->
+      <section class="lg:col-span-8 space-y-4">
+        <div class="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden shadow-2xl">
+          <div class="border-b border-slate-800 px-4 py-2.5 flex items-center justify-between bg-slate-950/50">
+            <div class="flex items-center gap-2">
+              <span class="font-semibold text-sm text-slate-200">Terminal Chart</span>
+              <span id="currentPairTag" class="text-xs mono font-bold text-amber-400 px-2 py-0.5 bg-amber-400/10 rounded border border-amber-400/20">XAU/USD</span>
+            </div>
+            <div class="flex items-center gap-1">
+              <button onclick="switchChart('OANDA:XAUUSD', 'XAU/USD (Gold)')" class="px-2.5 py-1 text-xs mono rounded bg-slate-800 text-slate-300 hover:text-white">Gold</button>
+              <button onclick="handlePairClick('FX:EURUSD', 'EUR/USD')" class="px-2.5 py-1 text-xs mono rounded bg-slate-800 text-slate-300 hover:text-white flex items-center gap-1">EUR/USD <span class="text-[9px] text-amber-400">🔒</span></button>
+              <button onclick="handlePairClick('FX:GBPUSD', 'GBP/USD')" class="px-2.5 py-1 text-xs mono rounded bg-slate-800 text-slate-300 hover:text-white flex items-center gap-1">GBP/USD <span class="text-[9px] text-amber-400">🔒</span></button>
+            </div>
+          </div>
+
+          <!-- TradingView Container (Tinggi disesuaikan di mobile agar nyaman discroll) -->
+          <div class="w-full h-[280px] sm:h-[400px] relative bg-slate-950" id="tv_chart_container"></div>
         </div>
-        <h3 class="text-xs font-bold text-slate-100 uppercase tracking-wider" id="txtModalHeader">TERMINAL IDENTITY</h3>
+
+        <!-- Alpha Setup Explanation Card -->
+        <div class="bg-slate-900/40 border border-slate-800 rounded-xl p-4">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-2">
+            <span class="h-2 w-2 rounded-full bg-amber-400"></span> Algorithmic Setup Thesis
+          </h3>
+          <p id="thesisText" class="text-sm text-slate-300 leading-relaxed">
+            Struktur Makro Bullish di atas EMA 200. Pantulan terverifikasi di zona diskon Fibonacci Golden Pocket (61.8% – 78.6%) dengan konfirmasi candlestick bullish rejection dan stabilisasi RSI.
+          </p>
+        </div>
+      </section>
+
+      <!-- Right Column: Institutional Signal Card & Precision Lot Calculator -->
+      <section class="lg:col-span-4 space-y-4">
+        
+        <!-- Live Signal Blueprint -->
+        <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-5 shadow-xl relative overflow-hidden">
+          <div class="flex items-start justify-between mb-4">
+            <div>
+              <span class="text-[10px] mono uppercase tracking-wider px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded font-semibold">VALID BUY SETUP</span>
+              <h2 id="signalPair" class="text-lg font-bold text-slate-100 mt-1">XAU/USD (Gold)</h2>
+            </div>
+            <div class="text-right">
+              <span class="text-[10px] text-slate-500 block mono">Risk to Reward</span>
+              <span class="mono text-base font-bold text-amber-400">1 : 2.8</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-2 border-y border-slate-800 py-3.5 mb-4 mono text-center">
+            <div>
+              <span class="text-[10px] text-slate-500 uppercase block">Entry</span>
+              <span id="displayEntry" class="text-sm font-bold text-slate-200">2652.50</span>
+            </div>
+            <div>
+              <span class="text-[10px] text-rose-500 uppercase block">Stop Loss</span>
+              <span id="displaySL" class="text-sm font-bold text-rose-400">2648.50</span>
+            </div>
+            <div>
+              <span class="text-[10px] text-emerald-500 uppercase block">Take Profit</span>
+              <span id="displayTP" class="text-sm font-bold text-emerald-400">2663.70</span>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between text-xs text-slate-400 mono">
+            <span>Risk Distance: <strong id="riskDistancePips" class="text-slate-200">40.0</strong> Pips</span>
+            <span>Target: <strong id="rewardDistancePips" class="text-emerald-400">112.0</strong> Pips</span>
+          </div>
+        </div>
+
+        <!-- Precision Institutional Risk & Lot Calculator -->
+        <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-5 shadow-xl">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 mb-3 flex items-center justify-between">
+            <span>Risk Capital Calculator</span>
+            <span class="text-[10px] text-amber-400 mono">Formula: 1% Risk</span>
+          </h3>
+
+          <div class="space-y-3">
+            <div>
+              <label class="text-[11px] text-slate-400 block mb-1">Account Balance (\$ USD)</label>
+              <input type="number" id="calcBalance" value="1000" class="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm mono text-slate-100 focus:outline-none focus:border-amber-400 transition" oninput="calculateLotSize()">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-[11px] text-slate-400 block mb-1">Risk per Trade (%)</label>
+                <select id="calcRiskPercent" class="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-2 text-xs mono text-slate-100 focus:outline-none focus:border-amber-400 transition" onchange="calculateLotSize()">
+                  <option value="0.5">0.5% (Conservative)</option>
+                  <option value="1.0" selected>1.0% (Standard Pro)</option>
+                  <option value="2.0">2.0% (Aggressive)</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-[11px] text-slate-400 block mb-1">SL Distance (Pips)</label>
+                <input type="number" id="calcSLPips" value="40" class="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm mono text-slate-100 focus:outline-none focus:border-amber-400 transition" oninput="calculateLotSize()">
+              </div>
+            </div>
+
+            <div class="pt-3 border-t border-slate-800 grid grid-cols-2 gap-2 text-center mono">
+              <div class="bg-slate-950/60 p-2.5 rounded border border-slate-800/80">
+                <span class="text-[10px] text-slate-500 block">Max Loss</span>
+                <span id="resRiskDollar" class="text-sm font-bold text-rose-400">\$10.00</span>
+              </div>
+              <div class="bg-amber-400/5 p-2.5 rounded border border-amber-400/20">
+                <span class="text-[10px] text-amber-400 block">Recommended Lot</span>
+                <span id="resLotSize" class="text-base font-bold text-amber-400">0.02 Lot</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+    </div>
+  </main>
+
+  <!-- VIP License Modal -->
+  <div id="licenseModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
+      <div class="text-center">
+        <div class="h-10 w-10 mx-auto rounded-full bg-amber-400/10 border border-amber-400/30 flex items-center justify-center text-amber-400 font-bold mb-3">🔑</div>
+        <h3 class="text-base font-bold text-slate-100">Activate VIP Institutional Access</h3>
+        <p class="text-xs text-slate-400 mt-1">Buka seluruh sinyal harian tak terbatas untuk Gold, EUR/USD, dan GBP/USD.</p>
       </div>
 
-      <!-- Plan Status Tracker -->
-      <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 mb-4">
-        <div class="flex justify-between items-center mb-1.5">
-          <span class="text-[10px] text-slate-400 uppercase font-semibold">Current License:</span>
-          <span id="tierBadge" class="text-[10px] font-bold text-slate-300 px-2 py-0.5 rounded bg-slate-900 border border-slate-700">FREE TIER</span>
-        </div>
-        <div class="flex justify-between items-center">
-          <span class="text-[10px] text-slate-400 uppercase font-semibold">Weekly Signals Allowance:</span>
-          <span id="quotaDisplay" class="text-[11px] font-bold mono text-amber-400">3 / 3 Remaining</span>
-        </div>
-      </div>
-
-      <!-- License Key Redemption -->
-      <div class="mb-4">
-        <label class="text-[9px] text-slate-400 uppercase font-bold tracking-wider" id="txtKeyLabel">Redeem VIP License Key</label>
-        <input id="vipCodeInput" type="text" placeholder="" class="w-full mt-1.5 bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs mono text-slate-100 uppercase tracking-widest focus:outline-none focus:border-amber-500 transition-all">
-        <p id="vipFeedbackMsg" class="text-[10px] mt-1.5 hidden"></p>
+      <div>
+        <input type="text" id="licenseInput" placeholder="Masukkan Kode Lisensi (ALPHA2026)" class="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-center mono text-sm text-slate-100 focus:outline-none focus:border-amber-400 uppercase">
+        <span id="licenseError" class="text-[11px] text-rose-400 text-center block mt-1.5 hidden">Kode lisensi tidak valid.</span>
       </div>
 
       <div class="flex gap-2">
-        <button onclick="closeAuthModal()" class="w-1/2 py-2 text-xs font-semibold rounded-xl bg-slate-900 text-slate-400 hover:bg-slate-800 border border-slate-800" id="txtModalClose">
-          Dismiss
-        </button>
-        <button onclick="redeemLicense()" class="w-1/2 py-2 text-xs font-bold rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md transition-all" id="txtModalApply">
-          Apply Key
-        </button>
+        <button onclick="closeLicenseModal()" class="w-1/2 py-2 text-xs rounded border border-slate-700 text-slate-300 hover:bg-slate-800 transition">Batal</button>
+        <button onclick="submitLicense()" class="w-1/2 py-2 text-xs font-bold rounded bg-amber-400 text-slate-950 hover:bg-amber-300 transition">Aktivasi</button>
       </div>
     </div>
   </div>
 
-  <!-- Toast Notification Overlay -->
-  <div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 hidden px-4 py-2 rounded-xl bg-slate-900/95 border border-slate-700 text-xs font-medium text-slate-200 shadow-2xl backdrop-blur-md flex items-center gap-2">
-    <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400"></i>
-    <span id="toastMsg">Parameters copied to clipboard</span>
-  </div>
-
-  <script src="https://s3.tradingview.com/tv.js"></script>
+  <!-- TradingView Library Script -->
+  <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
   <script>
-    let currentLang = 'en'; // Default ke standar internasional
-    let isPro = localStorage.getItem('tyche_is_pro') === 'true';
-    let currentPairKey = 'XAUUSD';
-    let activeSymbol = "FX_IDC:XAUUSD";
+    let isVip = localStorage.getItem('tyche_vip') === 'true';
 
-    const dict = {
-      en: {
-        feedStatus: 'LIVE ENGINE ACTIVE',
-        switchLang: 'ID',
-        accountGuest: 'GUEST (FREE)',
-        accountPro: 'INSTITUTIONAL VIP',
-        proLockedTitle: 'PRO INSTRUMENT LOCKED',
-        proLockedDesc: 'Unlock multi-asset execution access with an institutional license key.',
-        unlockProBtn: 'ACTIVATE PRO ACCESS',
-        signalHeader: 'STAGE 1: RADAR RADIAL MONITOR',
-        signalAction: 'WATCHLIST: AWAIT CONFIRMATION',
-        entryLabel: 'Target Level',
-        slLabel: 'Stop Limit (SL)',
-        tpLabel: 'Take Profit (TP)',
-        reasonTitle: 'Setup Invalidation & Rationale',
-        copyBtn: 'Copy Parameters to Clipboard',
-        calcTitle: 'Capital Risk Sizer',
-        balanceLabel: 'Account Equity (USD)',
-        typeLabel: 'Account Class',
-        optCent: 'Micro / Cent (Min \$10)',
-        optStandard: 'Standard Institutional',
-        lotResultLabel: 'Optimal Position Size',
-        riskRuleLabel: 'Auto-calibrated for risk variance',
-        modalHeader: 'TERMINAL IDENTITY',
-        tierFree: 'FREE TIER',
-        tierPro: 'PRO VIP (UNLIMITED)',
-        keyLabel: 'Redeem VIP License Key',
-        modalClose: 'Dismiss',
-        modalApply: 'Apply Key',
-        toastCopied: 'Parameters copied to clipboard',
-        vipSuccess: 'Institutional VIP Activated. All Pairs Unlocked.',
-        vipInvalid: 'Invalid License Key.'
-      },
-      id: {
-        feedStatus: 'ENGINE LIVE AKTIF',
-        switchLang: 'EN',
-        accountGuest: 'AKUN FREE',
-        accountPro: 'VIP INSTITUSIONAL',
-        proLockedTitle: 'INSTRUMEN PRO TERKUNCI',
-        proLockedDesc: 'Buka akses multi-aset tak terbatas dengan kode lisensi institusional.',
-        unlockProBtn: 'AKTIFKAN AKSES PRO',
-        signalHeader: 'TAHAP 1: RADAR PANTAU',
-        signalAction: 'PANTAU: TUNGGU KONFIRMASI',
-        entryLabel: 'Titik Target',
-        slLabel: 'Batas Rugi (SL)',
-        tpLabel: 'Target Untung (TP)',
-        reasonTitle: 'Alasan & Pembatalan Setup',
-        copyBtn: 'Salin Parameter ke Clipboard',
-        calcTitle: 'Kalkulator Risiko Modal',
-        balanceLabel: 'Saldo Modal (USD)',
-        typeLabel: 'Tipe Akun',
-        optCent: 'Akun Cent (Aman 10 USD)',
-        optStandard: 'Akun Standar Institusi',
-        lotResultLabel: 'Ukuran Lot Terukur',
-        riskRuleLabel: 'Disesuaikan dengan toleransi risiko',
-        modalHeader: 'IDENTITAS TERMINAL',
-        tierFree: 'AKUN FREE',
-        tierPro: 'PRO VIP (UNLIMITED)',
-        keyLabel: 'Masukkan Kode Lisensi VIP',
-        modalClose: 'Tutup',
-        modalApply: 'Terapkan',
-        toastCopied: 'Parameter berhasil disalin ke clipboard',
-        vipSuccess: 'Akses VIP Aktif. Seluruh instrumen terbuka.',
-        vipInvalid: 'Kode lisensi tidak valid.'
-      }
-    };
-
-    const pairData = {
-      'XAUUSD': { 
-        name: 'XAU/USD (Gold)', 
-        tv: 'FX_IDC:XAUUSD', 
-        entry: '2652.50', 
-        sl: '2648.50', 
-        tp: '2662.50', 
-        reason: {
-          en: 'Price traversing toward critical H1 demand shelf. Order preparation required. Stand by for final execution trigger.',
-          id: 'Harga bergerak menuju zona support kuat H1. Siapkan posisi & kalkulator lot. Tunggu keputusan final sebelum eksekusi.'
-        },
-        proOnly: false 
-      },
-      'EURUSD': { 
-        name: 'EUR/USD', 
-        tv: 'FX:EURUSD', 
-        entry: '1.08200', 
-        sl: '1.08000', 
-        tp: '1.08600', 
-        reason: {
-          en: 'Ascending market structure verified at 61.8% Fibonacci zone. Invalidation sits below structural swing low.',
-          id: 'Struktur kenaikan terkonfirmasi di zona Fibonacci 61.8%. Batas pembatalan berada tepat di bawah swing low.'
-        },
-        proOnly: true 
-      },
-      'GBPUSD': { 
-        name: 'GBP/USD', 
-        tv: 'FX:GBPUSD', 
-        entry: '1.29800', 
-        sl: '1.29550', 
-        tp: '1.30300', 
-        reason: {
-          en: 'Breakout-retest confirmation at London session open. Favorable asymmetry with risk:reward ratio above 1:2.5.',
-          id: 'Konfirmasi breakout-retest saat pembukaan sesi London. Rasio risk:reward terukur di atas 1:2.5.'
-        },
-        proOnly: true 
-      }
-    };
-
-    function renderChart(symbol) {
+    function initTradingView(symbol) {
       new TradingView.widget({
         "autosize": true,
         "symbol": symbol,
@@ -331,186 +210,77 @@
         "theme": "dark",
         "style": "1",
         "locale": "en",
-        "toolbar_bg": "#06090e",
+        "toolbar_bg": "#0b0e14",
         "enable_publishing": false,
-        "hide_side_toolbar": true,
+        "hide_side_toolbar": false,
         "allow_symbol_change": false,
-        "container_id": "tradingview_chart"
+        "container_id": "tv_chart_container"
       });
     }
 
-    function showToast(message, isError = false) {
-      const toast = document.getElementById('toast');
-      const toastMsg = document.getElementById('toastMsg');
-      const toastIcon = document.getElementById('toastIcon');
+    // Presisi Rumus Lot Institusional
+    function calculateLotSize() {
+      const balance = parseFloat(document.getElementById('calcBalance').value) || 0;
+      const riskPercent = parseFloat(document.getElementById('calcRiskPercent').value) || 1.0;
+      const slPips = parseFloat(document.getElementById('calcSLPips').value) || 1;
 
-      toastMsg.innerText = message;
-      if (isError) {
-        toastIcon.className = "fa-solid fa-triangle-exclamation text-rose-400";
+      const riskDollar = balance * (riskPercent / 100);
+      document.getElementById('resRiskDollar').innerText = `$${riskDollar.toFixed(2)}`;
+
+      // Standar 1 pip lot standar (1.00) = \$10 (EUR, GBP, XAU 10c)
+      let lot = riskDollar / (slPips * 10);
+      if (lot < 0.01) lot = 0.01;
+
+      document.getElementById('resLotSize').innerText = `${lot.toFixed(2)} Lot`;
+    }
+
+    function switchChart(symbol, name) {
+      document.getElementById('currentPairTag').innerText = name;
+      initTradingView(symbol);
+    }
+
+    function handlePairClick(symbol, name) {
+      if (!isVip) {
+        openLicenseModal();
       } else {
-        toastIcon.className = "fa-solid fa-circle-check text-emerald-400";
-      }
-
-      toast.classList.remove('hidden');
-      setTimeout(() => {
-        toast.classList.add('hidden');
-      }, 2500);
-    }
-
-    function applyTranslations() {
-      const t = dict[currentLang];
-      document.getElementById('txtFeedStatus').innerText = t.feedStatus;
-      document.getElementById('currentLangLabel').innerText = t.switchLang;
-      document.getElementById('txtProLockedTitle').innerText = t.proLockedTitle;
-      document.getElementById('txtProLockedDesc').innerText = t.proLockedDesc;
-      document.getElementById('txtUnlockProBtn').innerText = t.unlockProBtn;
-      document.getElementById('txtSignalHeader').innerText = t.signalHeader;
-      document.getElementById('txtSignalAction').innerText = t.signalAction;
-      document.getElementById('txtEntryLabel').innerText = t.entryLabel;
-      document.getElementById('txtSLLabel').innerText = t.slLabel;
-      document.getElementById('txtTPLabel').innerText = t.tpLabel;
-      document.getElementById('txtReasonTitle').innerText = t.reasonTitle;
-      document.getElementById('txtCopyBtn').innerText = t.copyBtn;
-      document.getElementById('txtCalcTitle').innerText = t.calcTitle;
-      document.getElementById('txtBalanceLabel').innerText = t.balanceLabel;
-      document.getElementById('txtTypeLabel').innerText = t.typeLabel;
-      document.getElementById('optCent').innerText = t.optCent;
-      document.getElementById('optStandard').innerText = t.optStandard;
-      document.getElementById('txtLotResultLabel').innerText = t.lotResultLabel;
-      document.getElementById('txtRiskRuleLabel').innerText = t.riskRuleLabel;
-      document.getElementById('txtModalHeader').innerText = t.modalHeader;
-      document.getElementById('txtKeyLabel').innerText = t.keyLabel;
-      document.getElementById('txtModalClose').innerText = t.modalClose;
-      document.getElementById('txtModalApply').innerText = t.modalApply;
-
-      const p = pairData[currentPairKey];
-      document.getElementById('valReason').innerText = p.reason[currentLang];
-      updateTierUI();
-    }
-
-    function toggleLang() {
-      currentLang = currentLang === 'en' ? 'id' : 'en';
-      applyTranslations();
-      renderChart(pairData[currentPairKey].tv);
-    }
-
-    function updateTierUI() {
-      const t = dict[currentLang];
-      const accText = document.getElementById('txtAccountStatus');
-      const tierBadge = document.getElementById('tierBadge');
-      const quota = document.getElementById('quotaDisplay');
-
-      if (isPro) {
-        accText.innerText = t.accountPro;
-        tierBadge.innerText = t.tierPro;
-        tierBadge.className = "text-[10px] font-bold text-amber-400 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30";
-        quota.innerText = "UNLIMITED";
-        document.getElementById('lock-EURUSD').classList.add('hidden');
-        document.getElementById('lock-GBPUSD').classList.add('hidden');
-      } else {
-        accText.innerText = t.accountGuest;
-        tierBadge.innerText = t.tierFree;
-        tierBadge.className = "text-[10px] font-bold text-slate-300 px-2 py-0.5 rounded bg-slate-900 border border-slate-700";
-        quota.innerText = "3 / 3 Remaining";
-        document.getElementById('lock-EURUSD').classList.remove('hidden');
-        document.getElementById('lock-GBPUSD').classList.remove('hidden');
-      }
-      checkProAccess();
-    }
-
-    function checkProAccess() {
-      const p = pairData[currentPairKey];
-      const overlay = document.getElementById('proLockOverlay');
-      const content = document.getElementById('signalCardContent');
-
-      if (p.proOnly && !isPro) {
-        overlay.classList.remove('hidden');
-        overlay.classList.add('flex');
-        content.classList.add('locked-blur');
-      } else {
-        overlay.classList.remove('hidden');
-        overlay.classList.add('flex');
-        content.classList.remove('locked-blur');
-        overlay.classList.add('hidden');
+        switchChart(symbol, name);
       }
     }
 
-    function switchPair(pairKey, tvSymbol) {
-      currentPairKey = pairKey;
-      document.querySelectorAll('.pair-tab').forEach(b => {
-        b.className = "pair-tab py-2 text-xs font-bold rounded-lg text-center text-slate-400 hover:text-white flex items-center justify-center gap-1 transition-all";
-      });
-      document.getElementById('tab-' + pairKey).className = "pair-tab py-2 text-xs font-bold rounded-lg text-center bg-amber-500 text-slate-950 flex items-center justify-center gap-1 shadow-sm transition-all";
-      
-      const p = pairData[pairKey];
-      document.getElementById('activePairTitle').innerText = p.name;
-      document.getElementById('valEntry').innerText = p.entry;
-      document.getElementById('valSL').innerText = p.sl;
-      document.getElementById('valTP').innerText = p.tp;
-      document.getElementById('valReason').innerText = p.reason[currentLang];
-      
-      checkProAccess();
-      renderChart(p.tv);
+    function openLicenseModal() {
+      document.getElementById('licenseModal').classList.remove('hidden');
     }
 
-    function calcLot() {
-      const balance = parseFloat(document.getElementById('accBalance').value) || 0;
-      const type = document.getElementById('accType').value;
-      const res = document.getElementById('lotResult');
-
-      if (type === 'cent') {
-        const lot = (balance * 0.005).toFixed(2);
-        res.innerText = `${lot} Micro Lots`;
-      } else {
-        const lot = Math.max(0.01, (balance * 0.00005)).toFixed(2);
-        res.innerText = `${lot} Standard Lots`;
-      }
+    function closeLicenseModal() {
+      document.getElementById('licenseModal').classList.add('hidden');
     }
 
-    function copyTradeParams() {
-      const t = dict[currentLang];
-      const p = document.getElementById('activePairTitle').innerText;
-      const sl = document.getElementById('valSL').innerText;
-      const tp = document.getElementById('valTP').innerText;
-      const text = `TYCHEMETRICS ORDER:\nAsset: ${p}\nStop Limit: ${sl}\nTarget: ${tp}`;
-      navigator.clipboard.writeText(text);
-      showToast(t.toastCopied);
-    }
-
-    function openAuthModal() {
-      document.getElementById('authModal').classList.remove('hidden');
-    }
-
-    function closeAuthModal() {
-      document.getElementById('authModal').classList.add('hidden');
-      document.getElementById('vipFeedbackMsg').classList.add('hidden');
-      document.getElementById('vipCodeInput').value = '';
-    }
-
-    function redeemLicense() {
-      const code = document.getElementById('vipCodeInput').value.trim().toUpperCase();
-      const msg = document.getElementById('vipFeedbackMsg');
-      const t = dict[currentLang];
-
+    function submitLicense() {
+      const code = document.getElementById('licenseInput').value.trim().toUpperCase();
       if (code === 'ALPHA2026') {
-        isPro = true;
-        localStorage.setItem('tyche_is_pro', 'true');
-        msg.innerText = t.vipSuccess;
-        msg.className = "text-[10px] mt-1.5 text-emerald-400 font-bold block";
-        updateTierUI();
-        setTimeout(() => {
-          closeAuthModal();
-          showToast(t.vipSuccess);
-        }, 1000);
+        localStorage.setItem('tyche_vip', 'true');
+        isVip = true;
+        updateVipUI();
+        closeLicenseModal();
       } else {
-        msg.innerText = t.vipInvalid;
-        msg.className = "text-[10px] mt-1.5 text-rose-400 font-semibold block";
+        document.getElementById('licenseError').classList.remove('hidden');
       }
     }
 
-    applyTranslations();
-    updateTierUI();
-    renderChart(activeSymbol);
+    function updateVipUI() {
+      if (isVip) {
+        document.getElementById('tierText').innerText = 'VIP INSTITUTIONAL';
+        document.getElementById('quotaDisplay').innerText = 'UNLIMITED ACCESS';
+        document.getElementById('vipBadge').classList.replace('text-amber-400', 'text-emerald-400');
+        document.getElementById('vipBadge').classList.replace('border-amber-500/30', 'border-emerald-500/30');
+      }
+    }
+
+    window.onload = function() {
+      initTradingView('OANDA:XAUUSD');
+      calculateLotSize();
+      if (isVip) updateVipUI();
+    };
   </script>
 </body>
 </html>
