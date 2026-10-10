@@ -28,30 +28,47 @@ def run_market_scan():
         {
             "pair": "XAU/USD (Gold)",
             "ticker": "GC=F",
+            "action": "BUY",
             "target_entry": 2652.50,
-            "sl": "2656.00 (35 Pips)",
-            "tp": "2642.50 (100 Pips)",
-            "rr": "1 : 2.8",
-            "warn_dist": 6.0,   # Rentang siaga ~30 menit
-            "exec_dist": 1.5    # Rentang eksekusi ~5 menit
+            "sl": "2648.50 (40 Pips)",
+            "tp": "2662.50 (100 Pips)",
+            "rr": "1 : 2.5",
+            "reason": (
+                "Harga baru saja melakukan retest valid pada zona Demand/Support H1 setelah "
+                "terjadi liquidity sweep di sesi sebelumnya. Terbentuk pola candle rejection "
+                "(pinbar) yang mengindikasikan dominasi buyer kembali masuk menuju area resistance berikutnya."
+            ),
+            "warn_dist": 6.0,
+            "exec_dist": 1.5
         },
         {
             "pair": "EUR/USD",
             "ticker": "EURUSD=X",
+            "action": "BUY",
             "target_entry": 1.0820,
             "sl": "1.0805 (15 Pips)",
             "tp": "1.0865 (45 Pips)",
             "rr": "1 : 3.0",
+            "reason": (
+                "Struktur market mempertahankan higher low pada timeframe M15. Area 1.0820 "
+                "merupakan batas golden Fibonacci retracement 61.8% yang bertepatan dengan "
+                "rejection moving average, memberikan konfirmasi pantulan yang kuat."
+            ),
             "warn_dist": 0.0025,
             "exec_dist": 0.0006
         },
         {
             "pair": "GBP/USD",
             "ticker": "GBPUSD=X",
+            "action": "BUY",
             "target_entry": 1.2980,
             "sl": "1.2960 (20 Pips)",
             "tp": "1.3040 (60 Pips)",
             "rr": "1 : 3.0",
+            "reason": (
+                "Penembusan pola konsolidasi (breakout & retest) di zona key level psikologis 1.2980. "
+                "Volume beli terkonfirmasi meningkat di pembukaan sesi London, menjaga rasio reward jauh lebih besar dari risiko."
+            ),
             "warn_dist": 0.0030,
             "exec_dist": 0.0008
         }
@@ -61,21 +78,17 @@ def run_market_scan():
 
     for item in watchlist:
         curr_price = get_current_price(item["ticker"])
-        
-        # Lewati jika harga pasar belum terbaca
         if curr_price is None:
             continue
 
         selisih = abs(curr_price - item["target_entry"])
 
-        # Seleksi momentum: hanya kirim jika masuk kriteria waktu/jarak
         status_teks = None
         if selisih <= item["exec_dist"]:
             status_teks = "Eksekusi Sekarang (~5 Menit ke Level Entry)"
         elif selisih <= item["warn_dist"]:
             status_teks = "Siap-Siap (~30 Menit ke Level Pantau)"
 
-        # Jika tidak ada momentum di pair ini, jangan kirim pesan apa pun
         if not status_teks:
             continue
 
@@ -87,6 +100,7 @@ def run_market_scan():
             f"🛑 *Batas Rugi (SL):* {item['sl']}\n"
             f"💰 *Target Untung (TP):* {item['tp']}\n"
             f"⚖️ *R:R Ratio:* {item['rr']}\n\n"
+            f"💡 *Edukasi & Alasan Setup:*\n{item['reason']}\n\n"
             f"🛡️ *Manajemen Risiko:* Gunakan kalkulator di aplikasi, maksimal risiko 1% modal."
         )
         send_alert(pesan)
