@@ -1,15 +1,15 @@
 {
-  "updated_at": "2026-10-11 23:09 UTC",
+  "updated_at": "2026-10-12 07:49 UTC",
   "active_signal": {
     "pair": "GBP/USD",
     "type": "BUY",
-    "entry": 1.32336,
-    "sl": 1.3223,
-    "tp": 1.32633,
-    "risk_pips": 10.6,
-    "reward_pips": 29.7,
+    "entry": 1.32433,
+    "sl": 1.32347,
+    "tp": 1.32674,
+    "risk_pips": 8.6,
+    "reward_pips": 24.1,
     "rr": "1 : 2.8",
     "fib_zone": "Fibonacci 61.8% Golden Pocket",
-    "reason": "Struktur Makro Bullish (di atas EMA 200). Pantulan valid di Golden Pocket dengan pola candle rejection dan RSI 39.5."
+    "reason": "Struktur Makro Bullish (di atas EMA 200). Pantulan valid di Golden Pocket dengan pola candle rejection dan RSI 45.2."
   }
 }
