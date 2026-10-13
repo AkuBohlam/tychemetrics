@@ -1,15 +1,15 @@
 {
-  "updated_at": "2026-10-13 04:37 UTC",
+  "updated_at": "2026-10-13 05:00 UTC",
   "active_signal": {
-    "pair": "EUR/USD",
+    "pair": "GBP/USD",
     "type": "SELL",
-    "entry": 1.11744,
-    "sl": 1.11819,
-    "tp": 1.11534,
-    "risk_pips": 7.5,
-    "reward_pips": 21.0,
+    "entry": 1.32163,
+    "sl": 1.32242,
+    "tp": 1.31942,
+    "risk_pips": 7.9,
+    "reward_pips": 22.1,
     "rr": "1 : 2.8",
     "fib_zone": "Fibonacci 61.8% Rejection Pocket",
-    "reason": "Struktur Makro Bearish (di bawah EMA 200). Penolakan harga terverifikasi di Golden Pocket dengan candle rejection dan RSI 55.2."
+    "reason": "Struktur Makro Bearish (di bawah EMA 200). Penolakan harga terverifikasi di Golden Pocket dengan candle rejection dan RSI 48.8."
   }
 }
