@@ -1,15 +1,15 @@
 {
-  "updated_at": "2026-10-16 19:06 UTC",
+  "updated_at": "2026-10-16 19:40 UTC",
   "active_signal": {
-    "pair": "EUR/USD",
+    "pair": "XAU/USD (Gold)",
     "type": "BUY",
-    "entry": 1.12385,
-    "sl": 1.12147,
-    "tp": 1.13051,
-    "risk_pips": 23.8,
-    "reward_pips": 66.6,
+    "entry": 4190.6,
+    "sl": 4167.59,
+    "tp": 4255.03,
+    "risk_pips": 230.1,
+    "reward_pips": 644.3,
     "rr": "1 : 2.8",
     "fib_zone": "Fibonacci 61.8% Golden Pocket",
-    "reason": "Struktur Makro Bullish (di atas EMA 200). Pantulan valid di Golden Pocket dengan pola candle rejection dan RSI 41.8."
+    "reason": "Struktur Makro Bullish (di atas EMA 200). Pantulan valid di Golden Pocket dengan pola candle rejection dan RSI 51.2."
   }
 }
