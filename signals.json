@@ -1,15 +1,15 @@
 {
-  "updated_at": "2026-10-18 23:59 UTC",
+  "updated_at": "2026-10-19 00:38 UTC",
   "active_signal": {
     "pair": "EUR/USD",
     "type": "BUY",
-    "entry": 1.12284,
-    "sl": 1.12121,
-    "tp": 1.1274,
-    "risk_pips": 16.3,
-    "reward_pips": 45.6,
+    "entry": 1.12309,
+    "sl": 1.12129,
+    "tp": 1.12813,
+    "risk_pips": 18.0,
+    "reward_pips": 50.4,
     "rr": "1 : 2.8",
     "fib_zone": "Fibonacci 61.8% Golden Pocket",
-    "reason": "Struktur Makro Bullish (di atas EMA 200). Pantulan valid di Golden Pocket dengan pola candle rejection dan RSI 42.9."
+    "reason": "Struktur Makro Bullish (di atas EMA 200). Pantulan valid di Golden Pocket dengan pola candle rejection dan RSI 42.8."
   }
 }
