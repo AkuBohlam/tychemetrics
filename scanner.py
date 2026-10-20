@@ -4,12 +4,14 @@ import requests
 import yfinance as yf
 import pandas as pd
 from datetime import datetime
-import random
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 STATE_FILE = "signals.json"
 
+# ==========================================
+# 1. INFRASTRUKTUR & MANAJEMEN MEMORI
+# ==========================================
 def send_alert(message):
     if not BOT_TOKEN or not CHAT_ID:
         return
@@ -27,264 +29,128 @@ def load_state():
                 return json.load(f)
         except Exception:
             pass
-    return {"updated_at": "", "active_signal": None, "radar": {}}
+    return {"updated_at": "", "active_signals": [], "radar_locks": {}}
 
 def save_state(state_data):
     state_data["updated_at"] = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
     with open(STATE_FILE, "w") as f:
         json.dump(state_data, f, indent=2)
 
-def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
+def calculate_atr(df, period=14):
+    high_low = df['High'] - df['Low']
+    high_close = (df['High'] - df['Close'].shift()).abs()
+    low_close = (df['Low'] - df['Close'].shift()).abs()
+    ranges = pd.concat([high_low, high_close, low_close], axis=1)
+    true_range = ranges.max(axis=1)
+    return true_range.rolling(period).mean()
+
+# ==========================================
+# 2. CORE ENGINE: STRATEGI 3 PILAR INSTITUSIONAL
+# ==========================================
+def core_institutional_engine(ticker_symbol, pair_name, current_state):
     try:
-        df = yf.download(ticker_symbol, period="5d", interval="15m", progress=False)
-        if df.empty or len(df) < 100:
-            return current_state
-
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.get_level_values(0)
-
-        lookback_period = -100
-        major_resistance = float(df['High'].iloc[lookback_period:-5].max())
-        major_support = float(df['Low'].iloc[lookback_period:-5].min())
-
-        last_candle = df.iloc[-1]
-        close_price = float(last_candle['Close'])
-        high_price = float(last_candle['High'])
-        low_price = float(last_candle['Low'])
-        open_price = float(last_candle['Open'])
-
+        pair_lock = f"CORE_{ticker_symbol}"
         is_gold = "GC=F" in ticker_symbol
-        multiplier = 10.0 if is_gold else 10000.0
-        decimals = 2 if is_gold else 5
-        radar_distance = 3.0 if is_gold else 0.0030 
-        pair_key = ticker_symbol
+        dec = 2 if is_gold else 5
+        spread_allowance = 0.50 if is_gold else 0.00005
 
-        # ==========================================
-        # FASE 3: PEMBATALAN (EMERGENCY CANCEL)
-        # ==========================================
-        active_signal = current_state.get("active_signal")
-        if active_signal and active_signal.get("pair") == pair_name:
-            sig_type = active_signal["type"]
-            entry_p = active_signal["entry"]
-            sl_p = active_signal["sl"]
-            tp_p = active_signal["tp"]
-
-            if sig_type == "SELL":
-                if high_price >= sl_p or low_price <= tp_p:
-                    current_state["active_signal"] = None
-                    return current_state
-                
-                if close_price > major_resistance and close_price > open_price:
-                    pesan_batal = (
-                        f"🚫 *[EMERGENCY CANCEL: PROTEKSI MODAL]*\n\n"
-                        f"📊 *Instrumen:* {pair_name}\n"
-                        f"⚠️ *Rekomendasi Dibatalkan:* {sig_type} pada `{entry_p}`\n\n"
-                        f"❌ *Alasan:* Arus pesanan (Order Flow) berbalik secara drastis. Struktur harga yang kita harapkan telah patah oleh volume yang berlawanan.\n\n"
-                        f"🎓 *Edukasi Psikologi:* Menelan kerugian kecil (Cut Loss dini) jauh lebih baik daripada bersikap keras kepala dan berharap harga turun kembali. Trader profesional tidak dinilai dari seberapa sering mereka menang, tapi dari kedisiplinan mereka memotong kerugian saat probabilitas sudah tidak berpihak.\n\n"
-                        f"⚡ *Tindakan:* Segera TUTUP POSISI Anda secara manual sekarang juga!"
-                    )
-                    send_alert(pesan_batal)
-                    current_state["active_signal"] = None
-                    return current_state
-
-            elif sig_type == "BUY":
-                if low_price <= sl_p or high_price >= tp_p:
-                    current_state["active_signal"] = None
-                    return current_state
-                
-                if close_price < major_support and close_price < open_price:
-                    pesan_batal = (
-                        f"🚫 *[EMERGENCY CANCEL: PROTEKSI MODAL]*\n\n"
-                        f"📊 *Instrumen:* {pair_name}\n"
-                        f"⚠️ *Rekomendasi Dibatalkan:* {sig_type} pada `{entry_p}`\n\n"
-                        f"❌ *Alasan:* Arus pesanan (Order Flow) berbalik secara drastis. Struktur harga yang kita harapkan telah patah oleh tekanan jual yang besar.\n\n"
-                        f"🎓 *Edukasi Psikologi:* Menelan kerugian kecil (Cut Loss dini) jauh lebih baik daripada bersikap keras kepala dan berharap harga naik kembali. Trader profesional tidak dinilai dari seberapa sering mereka menang, tapi dari kedisiplinan mereka memotong kerugian saat probabilitas sudah tidak berpihak.\n\n"
-                        f"⚡ *Tindakan:* Segera TUTUP POSISI Anda secara manual sekarang juga!"
-                    )
-                    send_alert(pesan_batal)
-                    current_state["active_signal"] = None
-                    return current_state
-            
-            if not active_signal.get("escort_sent"):
-                pesan_kawal = (
-                    f"🛡️ *[PENGAMANAN POSISI AKTIF]*\n\n"
-                    f"📊 *Instrumen:* {pair_name}\n"
-                    f"⚡ *Status:* Posisi {sig_type} Anda sedang berjalan (Entry: `{entry_p}`).\n\n"
-                    f"🎓 *Edukasi Trading:* Dalam dunia trading institusional, masuk ke pasar (entry) baru setengah dari perjuangan. Setengahnya lagi adalah 'Manajemen Posisi Aktif'. Kondisi makro bisa berubah dalam hitungan menit.\n\n"
-                    f"👀 *Tindakan Anda:* Tetap awasi layar MT5/TradingView Anda. Jika algoritma kami mendeteksi anomali pergerakan harga, kami akan mengirim instruksi Pembatalan (Emergency Cut) untuk menyelamatkan sisa modal Anda."
-                )
-                send_alert(pesan_kawal)
-                current_state["active_signal"]["escort_sent"] = True
-            
+        # Jika instrumen ini sudah ada sinyal aktif, skip untuk mencegah SPAM
+        if current_state["radar_locks"].get(pair_lock) == "ACTIVE":
             return current_state
 
-        # ==========================================
-        # FASE 1: RADAR (PERINGATAN DINI)
-        # ==========================================
-        radar_status = current_state.get("radar", {}).get(pair_key, "NEUTRAL")
+        # --- PILAR 1 & 2: TREN & ZONA ORDER BLOCK (TIMEFRAME H1) ---
+        df_h1 = yf.download(ticker_symbol, period="1mo", interval="1h", progress=False)
+        if df_h1.empty or len(df_h1) < 200: return current_state
+        if isinstance(df_h1.columns, pd.MultiIndex): df_h1.columns = df_h1.columns.get_level_values(0)
+
+        df_h1['MA50'] = df_h1['Close'].rolling(50).mean()
+        df_h1['MA200'] = df_h1['Close'].rolling(200).mean()
         
-        edukasi_res_vars = [
-            "Harga sedang memasuki 'zona rawan' tempat trader ritel biasanya meletakkan Stop Loss mereka. Institusi besar sangat menyukai area ini untuk memompa harga sesaat sebelum membantingnya turun.",
-            "Area Resistance ini memikat banyak trader pemula untuk berspekulasi Sell lebih awal. Institusi seringkali memanfaatkannya dengan mendorong harga naik sedikit lagi untuk menyapu Stop Loss mereka.",
-            "Secara algoritmik, zona ini penuh dengan likuiditas (kumpulan order). Bandar cenderung memanipulasi harga ke atas menembus area ini untuk menjebak 'early sellers' sebelum tren asli dimulai."
-        ]
-        tindakan_res_vars = [
-            "TAHAN DIRI. Jangan bereaksi dulu. Kita sedang menunggu konfirmasi apakah terjadi jebakan (Stop Hunt) atau malah Breakout murni. Bersiaplah di depan chart.",
-            "TETAP WASPADA. Biarkan trader ritel terjebak lebih dulu. Pantau chart Anda dan tunggu instruksi eksekusi resmi dari bot setelah konfirmasi penolakan (rejection).",
-            "PANTAU SAJA DULU. Jangan buru-buru menekan tombol SELL. Biarkan institusi menyelesaikan manipulasi harganya. Tangan di atas mouse."
-        ]
+        last_h1 = df_h1.iloc[-2] # Candle H1 terakhir yang sudah close
+        c_h1, ma50, ma200 = float(last_h1['Close']), float(last_h1['MA50']), float(last_h1['MA200'])
+        
+        trend = "NONE"
+        if ma50 > ma200 and c_h1 > ma50: trend = "UPTREND"
+        elif ma50 < ma200 and c_h1 < ma50: trend = "DOWNTREND"
 
-        edukasi_sup_vars = [
-            "Harga sedang memasuki 'zona rawan' tempat trader ritel biasanya meletakkan Stop Loss mereka. Institusi besar sangat menyukai area ini untuk menekan harga sesaat sebelum menariknya naik dengan kuat.",
-            "Area Support ini adalah target empuk bagi 'Smart Money'. Mereka sering menekan harga turun menembus batas ini untuk memicu kepanikan (panic selling) sebelum akhirnya memborong di harga murah.",
-            "Zona likuiditas bawah telah tercapai. Secara historis, institusi suka menciptakan penembusan palsu (fake breakdown) di level ini untuk mengumpulkan order BUY dari trader yang sudah putus asa."
-        ]
-        tindakan_sup_vars = [
-            "TAHAN DIRI. Jangan bereaksi dulu. Kita sedang menunggu konfirmasi apakah terjadi jebakan (Stop Hunt) atau malah Breakdown murni. Bersiaplah di depan chart.",
-            "TETAP WASPADA. Biarkan kepanikan ritel mereda lebih dulu. Pantau chart Anda dan tunggu instruksi eksekusi resmi dari bot setelah konfirmasi pembalikan arah.",
-            "PANTAU SAJA DULU. Jangan buru-buru menekan tombol BUY untuk 'menangkap pisau jatuh'. Biarkan institusi menyelesaikan manipulasi harganya."
-        ]
+        if trend == "NONE": return current_state # Abaikan jika tren tidak jelas
 
-        if radar_status == "NEUTRAL" and (major_resistance - close_price) <= radar_distance and close_price < major_resistance:
-            pesan_radar = (
-                f"⚠️ *[RADAR INSTITUSIONAL AKTIF]*\n\n"
-                f"🔍 *Instrumen:* {pair_name}\n"
-                f"📈 *Area Pantauan:* Mendekati Zona Resistance (`{round(major_resistance, decimals)}`).\n\n"
-                f"🧠 *Edukasi Market:* {random.choice(edukasi_res_vars)}\n\n"
-                f"⏳ *Tindakan Anda:* {random.choice(tindakan_res_vars)}"
-            )
-            send_alert(pesan_radar)
-            current_state["radar"][pair_key] = "WATCHING_RESISTANCE"
-            return current_state
+        # Identifikasi Area Order Block H1 (Proksi Matematis: Swing ekstrim terdekat)
+        ob_top, ob_bot = 0.0, 0.0
+        lookback = 48 # Cari zona di 48 jam terakhir
+        if trend == "UPTREND":
+            ob_bot = float(df_h1['Low'].iloc[-lookback:-2].min())
+            ob_top = ob_bot + (5.0 if is_gold else 0.0020) # Estimasi lebar zona Demand
+        elif trend == "DOWNTREND":
+            ob_top = float(df_h1['High'].iloc[-lookback:-2].max())
+            ob_bot = ob_top - (5.0 if is_gold else 0.0020) # Estimasi lebar zona Supply
 
-        elif radar_status == "NEUTRAL" and (close_price - major_support) <= radar_distance and close_price > major_support:
-            pesan_radar = (
-                f"⚠️ *[RADAR INSTITUSIONAL AKTIF]*\n\n"
-                f"🔍 *Instrumen:* {pair_name}\n"
-                f"📉 *Area Pantauan:* Mendekati Zona Support (`{round(major_support, decimals)}`).\n\n"
-                f"🧠 *Edukasi Market:* {random.choice(edukasi_sup_vars)}\n\n"
-                f"⏳ *Tindakan Anda:* {random.choice(tindakan_sup_vars)}"
-            )
-            send_alert(pesan_radar)
-            current_state["radar"][pair_key] = "WATCHING_SUPPORT"
-            return current_state
+        # Cek apakah harga SAAT INI sedang berada di dalam zona Order Block H1
+        current_price = float(df_h1['Close'].iloc[-1])
+        if not (ob_bot <= current_price <= ob_top):
+            return current_state # Harga belum masuk zona, santai.
 
-        # ==========================================
-        # FASE 2: EKSEKUSI (REKOMENDASI)
-        # ==========================================
-        if radar_status == "WATCHING_RESISTANCE":
-            if high_price > major_resistance and close_price < major_resistance and close_price < open_price:
-                entry_price = round(close_price, decimals)
-                sl_price = round(high_price + (1.5 if is_gold else 0.0015), decimals)
-                risk_dist = abs(sl_price - entry_price)
-                
-                tp_price = round(major_support + (1.0 if is_gold else 0.0010), decimals)
-                reward_dist = abs(entry_price - tp_price)
-                
-                actual_rr = reward_dist / risk_dist if risk_dist > 0 else 0
-                if actual_rr < 2.0:
-                    current_state["radar"][pair_key] = "NEUTRAL"
-                    return current_state 
+        # --- PILAR 3: KONFIRMASI ENGULFING & ATR (TIMEFRAME M5) ---
+        df_m5 = yf.download(ticker_symbol, period="5d", interval="5m", progress=False)
+        if df_m5.empty: return current_state
+        if isinstance(df_m5.columns, pd.MultiIndex): df_m5.columns = df_m5.columns.get_level_values(0)
+        
+        df_m5['ATR'] = calculate_atr(df_m5, 14)
+        
+        prev_m5 = df_m5.iloc[-2] # Candle M5 sebelumnya
+        curr_m5 = df_m5.iloc[-1] # Candle M5 yang baru saja ditutup (terkini)
+        atr_value = float(curr_m5['ATR'])
 
-                web_reason = f"Bearish Liquidity Sweep terkonfirmasi di Resistance ({round(major_resistance, decimals)}). Peluang probabilitas tinggi untuk SELL."
-                
-                telegram_sell_vars = [
-                    "Jebakan bandar terkonfirmasi! Harga sengaja didorong naik menembus area Resistance untuk memancing optimisme trader awam (FOMO). Begitu likuiditas terkumpul, harga langsung ditolak kuat dan dibanting turun. Ini jejak institusi besar (Liquidity Sweep).",
-                    "Rejeksi institusional tervalidasi! Pola penembusan palsu (fakeout) di atas Resistance menunjukkan bahwa 'Smart Money' hanya menyapu Stop Loss ritel sebelum mendistribusikan pesanan jual masif mereka. Ada potensi probabilitas tinggi untuk ikut arus turun ini.",
-                    "Momentum palsu berhasil diidentifikasi. Institusi membiarkan harga naik sesaat, memicu harapan breakout, lalu membantingnya dengan volume besar di timeframe ini. Setup institusional SELL kini terlihat sangat menjanjikan."
-                ]
-                telegram_reason = random.choice(telegram_sell_vars)
+        # Logika Strong Engulfing
+        is_bullish_engulfing = (prev_m5['Close'] < prev_m5['Open']) and \
+                               (curr_m5['Close'] > curr_m5['Open']) and \
+                               (curr_m5['Close'] > prev_m5['Open']) and \
+                               (curr_m5['Open'] <= prev_m5['Close'])
 
-                setup = {
-                    "pair": pair_name,
-                    "type": "SELL",
-                    "entry": entry_price,
-                    "sl": sl_price,
-                    "tp": tp_price,
-                    "risk_pips": round(risk_dist * multiplier, 1),
-                    "reward_pips": round(reward_dist * multiplier, 1),
-                    "rr": f"1 : {round(actual_rr, 1)}",
-                    "reason": web_reason,
-                    "escort_sent": False
-                }
-                current_state["active_signal"] = setup
-                current_state["radar"][pair_key] = "NEUTRAL"
-                
-                pesan_eksekusi = (
-                    f"🎯 *[REKOMENDASI EKSEKUSI: IKUTI ARUS INSTITUSI]*\n\n"
-                    f"📊 *Instrumen:* {setup['pair']}\n"
-                    f"⚡ *Peluang Aksi:* POTENSI {setup['type']}\n"
-                    f"📍 *Level Entry:* `{setup['entry']}`\n"
-                    f"🛑 *Stop Loss (SL):* `{setup['sl']}` ({setup['risk_pips']} Pips)\n"
-                    f"💰 *Take Profit (TP):* `{setup['tp']}` ({setup['reward_pips']} Pips)\n\n"
-                    f"💡 *Smart Money Logic:* {telegram_reason}\n\n"
-                    f"🎓 *Edukasi Risiko:* Tidak ada strategi yang 100% pasti. Rasio keuntungan terhadap risiko kita adalah {setup['rr']}. Selalu gunakan Kalkulator Web kami untuk memastikan risiko Anda maksimal hanya 1% dari total modal."
-                )
-                send_alert(pesan_eksekusi)
-                return current_state
+        is_bearish_engulfing = (prev_m5['Close'] > prev_m5['Open']) and \
+                               (curr_m5['Close'] < curr_m5['Open']) and \
+                               (curr_m5['Close'] < prev_m5['Open']) and \
+                               (curr_m5['Open'] >= prev_m5['Close'])
 
-        elif radar_status == "WATCHING_SUPPORT":
-            if low_price < major_support and close_price > major_support and close_price > open_price:
-                entry_price = round(close_price, decimals)
-                sl_price = round(low_price - (1.5 if is_gold else 0.0015), decimals)
-                risk_dist = abs(entry_price - sl_price)
-                
-                tp_price = round(major_resistance - (1.0 if is_gold else 0.0010), decimals)
-                reward_dist = abs(tp_price - entry_price)
-                
-                actual_rr = reward_dist / risk_dist if risk_dist > 0 else 0
-                if actual_rr < 2.0:
-                    current_state["radar"][pair_key] = "NEUTRAL"
-                    return current_state 
+        # Eksekusi Algoritma
+        if trend == "UPTREND" and is_bullish_engulfing:
+            entry_p = round(float(curr_m5['Close']) + spread_allowance, dec)
+            sl_p = round(float(curr_m5['Low']) - atr_value, dec)
+            risk = abs(entry_p - sl_p)
+            tp_p = round(entry_p + (risk * 3), dec) # Baku 1:3 RR
 
-                web_reason = f"Bullish Liquidity Sweep terkonfirmasi di Support ({round(major_support, decimals)}). Peluang probabilitas tinggi untuk BUY."
-                
-                telegram_buy_vars = [
-                    "Jebakan bandar terkonfirmasi! Harga sengaja didorong turun menembus area Support untuk memancing kepanikan (panic selling) dari trader awam. Begitu likuiditas terkumpul, harga langsung ditolak kuat dan ditarik naik. Ini jejak institusi besar.",
-                    "Rejeksi institusional tervalidasi! Pola penembusan palsu (fakeout) di bawah Support menunjukkan bahwa 'Smart Money' hanya menyapu Stop Loss ritel sebelum mengakumulasi pesanan beli masif mereka. Ada potensi probabilitas tinggi untuk ikut arus naik ini.",
-                    "Kepanikan palsu berhasil diidentifikasi. Institusi membiarkan harga turun tajam sesaat untuk menciptakan ilusi downtrend, lalu memborongnya dengan volume besar. Setup institusional BUY kini terlihat sangat menjanjikan."
-                ]
-                telegram_reason = random.choice(telegram_buy_vars)
+            current_state["active_signals"].append({
+                "strategy": "Core: OB+Engulfing", "pair": pair_name, "type": "BUY MARKET",
+                "entry": entry_p, "sl": sl_p, "tp": tp_p, "rr": "1 : 3.0", "status": "OPEN"
+            })
+            current_state["radar_locks"][pair_lock] = "ACTIVE"
+            
+            msg = f"🎯 *[EKSEKUSI: CORE INSTITUTIONAL]*\n\n📊 *Instrumen:* {pair_name}\n⚡ *Aksi:* BUY SEKARANG (Market)\n📍 *Entry:* `{entry_p}` *(+Spread)*\n🛑 *SL:* `{sl_p}` *(ATR Protected)*\n💰 *TP:* `{tp_p}`\n\n💡 *Logic:* Harga memasuki zona Demand H1. Pola Strong Bullish Engulfing tervalidasi di M5.\n🎓 *Risk:* RR 1:3 baku. Gunakan MM 1% dari modal."
+            send_alert(msg)
 
-                setup = {
-                    "pair": pair_name,
-                    "type": "BUY",
-                    "entry": entry_price,
-                    "sl": sl_price,
-                    "tp": tp_price,
-                    "risk_pips": round(risk_dist * multiplier, 1),
-                    "reward_pips": round(reward_dist * multiplier, 1),
-                    "rr": f"1 : {round(actual_rr, 1)}",
-                    "reason": web_reason,
-                    "escort_sent": False
-                }
-                current_state["active_signal"] = setup
-                current_state["radar"][pair_key] = "NEUTRAL"
-                
-                pesan_eksekusi = (
-                    f"🎯 *[REKOMENDASI EKSEKUSI: IKUTI ARUS INSTITUSI]*\n\n"
-                    f"📊 *Instrumen:* {setup['pair']}\n"
-                    f"⚡ *Peluang Aksi:* POTENSI {setup['type']}\n"
-                    f"📍 *Level Entry:* `{setup['entry']}`\n"
-                    f"🛑 *Stop Loss (SL):* `{setup['sl']}` ({setup['risk_pips']} Pips)\n"
-                    f"💰 *Take Profit (TP):* `{setup['tp']}` ({setup['reward_pips']} Pips)\n\n"
-                    f"💡 *Smart Money Logic:* {telegram_reason}\n\n"
-                    f"🎓 *Edukasi Risiko:* Tidak ada strategi yang 100% pasti. Rasio keuntungan terhadap risiko kita adalah {setup['rr']}. Selalu gunakan Kalkulator Web kami untuk memastikan risiko Anda maksimal hanya 1% dari total modal."
-                )
-                send_alert(pesan_eksekusi)
-                return current_state
+        elif trend == "DOWNTREND" and is_bearish_engulfing:
+            entry_p = round(float(curr_m5['Close']), dec)
+            sl_p = round(float(curr_m5['High']) + atr_value + spread_allowance, dec)
+            risk = abs(sl_p - entry_p)
+            tp_p = round(entry_p - (risk * 3), dec) # Baku 1:3 RR
 
-        if radar_status == "WATCHING_RESISTANCE" and (major_resistance - close_price) > (radar_distance * 2):
-            current_state["radar"][pair_key] = "NEUTRAL"
-        elif radar_status == "WATCHING_SUPPORT" and (close_price - major_support) > (radar_distance * 2):
-            current_state["radar"][pair_key] = "NEUTRAL"
+            current_state["active_signals"].append({
+                "strategy": "Core: OB+Engulfing", "pair": pair_name, "type": "SELL MARKET",
+                "entry": entry_p, "sl": sl_p, "tp": tp_p, "rr": "1 : 3.0", "status": "OPEN"
+            })
+            current_state["radar_locks"][pair_lock] = "ACTIVE"
+            
+            msg = f"🎯 *[EKSEKUSI: CORE INSTITUTIONAL]*\n\n📊 *Instrumen:* {pair_name}\n⚡ *Aksi:* SELL SEKARANG (Market)\n📍 *Entry:* `{entry_p}`\n🛑 *SL:* `{sl_p}` *(ATR+Spread Protected)*\n💰 *TP:* `{tp_p}`\n\n💡 *Logic:* Harga memasuki zona Supply H1. Pola Strong Bearish Engulfing tervalidasi di M5.\n🎓 *Risk:* RR 1:3 baku. Gunakan MM 1% dari modal."
+            send_alert(msg)
 
         return current_state
-
     except Exception as e:
-        print(f"Error menganalisis {pair_name}: {e}")
+        print(f"Error pada Core Engine {ticker_symbol}: {e}")
         return current_state
 
+# ==========================================
+# 3. MANAJER UTAMA (RUNNER)
+# ==========================================
 def run_market_scan():
     current_state = load_state()
     instruments = [
@@ -292,8 +158,15 @@ def run_market_scan():
         {"name": "EUR/USD", "ticker": "EURUSD=X"},
         {"name": "GBP/USD", "ticker": "GBPUSD=X"}
     ]
+    
+    # Batasi memori agar array tidak kelebihan beban
+    if len(current_state["active_signals"]) > 10:
+        current_state["active_signals"] = current_state["active_signals"][-10:]
+
+    # Jalankan Mesin Utama
     for item in instruments:
-        current_state = calculate_liquidity_setup(item["ticker"], item["name"], current_state)
+        current_state = core_institutional_engine(item["ticker"], item["name"], current_state)
+        
     save_state(current_state)
 
 if __name__ == "__main__":
