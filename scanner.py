@@ -36,16 +36,21 @@ def save_state(state_data):
     with open(STATE_FILE, "w") as f:
         json.dump(state_data, f, indent=2)
 
-def calculate_atr(df, period=14):
+# Perhitungan ATR Institusional (Wilder's Smoothing murni ala MT5)
+def calculate_atr_institutional(df, period=14):
     high_low = df['High'] - df['Low']
     high_close = (df['High'] - df['Close'].shift()).abs()
     low_close = (df['Low'] - df['Close'].shift()).abs()
+    
     ranges = pd.concat([high_low, high_close, low_close], axis=1)
     true_range = ranges.max(axis=1)
-    return true_range.rolling(period).mean()
+    
+    # Menggunakan metode RMA/EWM persis seperti rumus J. Welles Wilder Jr.
+    atr = true_range.ewm(alpha=1/period, adjust=False).mean()
+    return atr
 
 # ==========================================
-# 2. CORE ENGINE: STRATEGI 3 PILAR INSTITUSIONAL
+# 2. CORE ENGINE: INSTITUTIONAL 3 PILAR + DYNAMIC RR
 # ==========================================
 def core_institutional_engine(ticker_symbol, pair_name, current_state):
     try:
@@ -54,11 +59,11 @@ def core_institutional_engine(ticker_symbol, pair_name, current_state):
         dec = 2 if is_gold else 5
         spread_allowance = 0.50 if is_gold else 0.00005
 
-        # Jika instrumen ini sudah ada sinyal aktif, skip untuk mencegah SPAM
+        # Anti-Spam: Jika sudah aktif, kunci dan skip
         if current_state["radar_locks"].get(pair_lock) == "ACTIVE":
             return current_state
 
-        # --- PILAR 1 & 2: TREN & ZONA ORDER BLOCK (TIMEFRAME H1) ---
+        # --- PILAR 1: TREN (TIMEFRAME H1) ---
         df_h1 = yf.download(ticker_symbol, period="1mo", interval="1h", progress=False)
         if df_h1.empty or len(df_h1) < 200: return current_state
         if isinstance(df_h1.columns, pd.MultiIndex): df_h1.columns = df_h1.columns.get_level_values(0)
@@ -66,42 +71,43 @@ def core_institutional_engine(ticker_symbol, pair_name, current_state):
         df_h1['MA50'] = df_h1['Close'].rolling(50).mean()
         df_h1['MA200'] = df_h1['Close'].rolling(200).mean()
         
-        last_h1 = df_h1.iloc[-2] # Candle H1 terakhir yang sudah close
+        last_h1 = df_h1.iloc[-2]
         c_h1, ma50, ma200 = float(last_h1['Close']), float(last_h1['MA50']), float(last_h1['MA200'])
         
         trend = "NONE"
         if ma50 > ma200 and c_h1 > ma50: trend = "UPTREND"
         elif ma50 < ma200 and c_h1 < ma50: trend = "DOWNTREND"
 
-        if trend == "NONE": return current_state # Abaikan jika tren tidak jelas
+        if trend == "NONE": return current_state
 
-        # Identifikasi Area Order Block H1 (Proksi Matematis: Swing ekstrim terdekat)
+        # --- PILAR 2 & DYNAMIC RR (STRUKTUR H1) ---
+        lookback = 48 # Struktur 2 hari terakhir (48 jam)
+        major_res = float(df_h1['High'].iloc[-lookback:-2].max())
+        major_sup = float(df_h1['Low'].iloc[-lookback:-2].min())
+
         ob_top, ob_bot = 0.0, 0.0
-        lookback = 48 # Cari zona di 48 jam terakhir
         if trend == "UPTREND":
-            ob_bot = float(df_h1['Low'].iloc[-lookback:-2].min())
-            ob_top = ob_bot + (5.0 if is_gold else 0.0020) # Estimasi lebar zona Demand
+            ob_bot = major_sup
+            ob_top = ob_bot + (5.0 if is_gold else 0.0020)
         elif trend == "DOWNTREND":
-            ob_top = float(df_h1['High'].iloc[-lookback:-2].max())
-            ob_bot = ob_top - (5.0 if is_gold else 0.0020) # Estimasi lebar zona Supply
+            ob_top = major_res
+            ob_bot = ob_top - (5.0 if is_gold else 0.0020)
 
-        # Cek apakah harga SAAT INI sedang berada di dalam zona Order Block H1
         current_price = float(df_h1['Close'].iloc[-1])
         if not (ob_bot <= current_price <= ob_top):
-            return current_state # Harga belum masuk zona, santai.
+            return current_state # Harga belum masuk zona Supply/Demand
 
-        # --- PILAR 3: KONFIRMASI ENGULFING & ATR (TIMEFRAME M5) ---
+        # --- PILAR 3: ENGULFING & ATR (TIMEFRAME M5) ---
         df_m5 = yf.download(ticker_symbol, period="5d", interval="5m", progress=False)
         if df_m5.empty: return current_state
         if isinstance(df_m5.columns, pd.MultiIndex): df_m5.columns = df_m5.columns.get_level_values(0)
         
-        df_m5['ATR'] = calculate_atr(df_m5, 14)
+        df_m5['ATR'] = calculate_atr_institutional(df_m5, 14)
         
-        prev_m5 = df_m5.iloc[-2] # Candle M5 sebelumnya
-        curr_m5 = df_m5.iloc[-1] # Candle M5 yang baru saja ditutup (terkini)
+        prev_m5 = df_m5.iloc[-2] 
+        curr_m5 = df_m5.iloc[-1] 
         atr_value = float(curr_m5['ATR'])
 
-        # Logika Strong Engulfing
         is_bullish_engulfing = (prev_m5['Close'] < prev_m5['Open']) and \
                                (curr_m5['Close'] > curr_m5['Open']) and \
                                (curr_m5['Close'] > prev_m5['Open']) and \
@@ -112,36 +118,48 @@ def core_institutional_engine(ticker_symbol, pair_name, current_state):
                                (curr_m5['Close'] < prev_m5['Open']) and \
                                (curr_m5['Open'] >= prev_m5['Close'])
 
-        # Eksekusi Algoritma
+        # --- EKSEKUSI DENGAN FILTER RR DINAMIS ---
         if trend == "UPTREND" and is_bullish_engulfing:
-            entry_p = round(float(curr_m5['Close']) + spread_allowance, dec)
-            sl_p = round(float(curr_m5['Low']) - atr_value, dec)
+            entry_p = float(curr_m5['Close']) + spread_allowance
+            sl_p = float(curr_m5['Low']) - atr_value
             risk = abs(entry_p - sl_p)
-            tp_p = round(entry_p + (risk * 3), dec) # Baku 1:3 RR
-
-            current_state["active_signals"].append({
-                "strategy": "Core: OB+Engulfing", "pair": pair_name, "type": "BUY MARKET",
-                "entry": entry_p, "sl": sl_p, "tp": tp_p, "rr": "1 : 3.0", "status": "OPEN"
-            })
-            current_state["radar_locks"][pair_lock] = "ACTIVE"
             
-            msg = f"🎯 *[EKSEKUSI: CORE INSTITUTIONAL]*\n\n📊 *Instrumen:* {pair_name}\n⚡ *Aksi:* BUY SEKARANG (Market)\n📍 *Entry:* `{entry_p}` *(+Spread)*\n🛑 *SL:* `{sl_p}` *(ATR Protected)*\n💰 *TP:* `{tp_p}`\n\n💡 *Logic:* Harga memasuki zona Demand H1. Pola Strong Bullish Engulfing tervalidasi di M5.\n🎓 *Risk:* RR 1:3 baku. Gunakan MM 1% dari modal."
-            send_alert(msg)
+            # Dynamic TP di Resistance Mayor
+            reward = major_res - entry_p
+            if risk > 0 and reward > 0:
+                rr_ratio = reward / risk
+                if rr_ratio >= 1.5: # Syarat Minimal Kelayakan RR
+                    entry_p, sl_p, tp_p = round(entry_p, dec), round(sl_p, dec), round(major_res, dec)
+                    
+                    current_state["active_signals"].append({
+                        "strategy": "Core: OB+Engulfing", "pair": pair_name, "type": "BUY MARKET",
+                        "entry": entry_p, "sl": sl_p, "tp": tp_p, "rr": f"1 : {round(rr_ratio, 1)}", "status": "OPEN"
+                    })
+                    current_state["radar_locks"][pair_lock] = "ACTIVE"
+                    
+                    msg = f"🎯 *[EKSEKUSI: CORE INSTITUTIONAL]*\n\n📊 *Instrumen:* {pair_name}\n⚡ *Aksi:* BUY SEKARANG (Market)\n📍 *Entry:* `{entry_p}` *(+Spread)*\n🛑 *SL:* `{sl_p}` *(ATR Protected)*\n💰 *TP:* `{tp_p}` *(Structural Target)*\n\n💡 *Logic:* Demand tervalidasi Engulfing M5.\n🎓 *Risk/Reward:* 1 : {round(rr_ratio, 1)}. Target diletakkan logis di Resistance terdekat, bukan sekadar baku 1:3."
+                    send_alert(msg)
 
         elif trend == "DOWNTREND" and is_bearish_engulfing:
-            entry_p = round(float(curr_m5['Close']), dec)
-            sl_p = round(float(curr_m5['High']) + atr_value + spread_allowance, dec)
+            entry_p = float(curr_m5['Close'])
+            sl_p = float(curr_m5['High']) + atr_value + spread_allowance
             risk = abs(sl_p - entry_p)
-            tp_p = round(entry_p - (risk * 3), dec) # Baku 1:3 RR
-
-            current_state["active_signals"].append({
-                "strategy": "Core: OB+Engulfing", "pair": pair_name, "type": "SELL MARKET",
-                "entry": entry_p, "sl": sl_p, "tp": tp_p, "rr": "1 : 3.0", "status": "OPEN"
-            })
-            current_state["radar_locks"][pair_lock] = "ACTIVE"
             
-            msg = f"🎯 *[EKSEKUSI: CORE INSTITUTIONAL]*\n\n📊 *Instrumen:* {pair_name}\n⚡ *Aksi:* SELL SEKARANG (Market)\n📍 *Entry:* `{entry_p}`\n🛑 *SL:* `{sl_p}` *(ATR+Spread Protected)*\n💰 *TP:* `{tp_p}`\n\n💡 *Logic:* Harga memasuki zona Supply H1. Pola Strong Bearish Engulfing tervalidasi di M5.\n🎓 *Risk:* RR 1:3 baku. Gunakan MM 1% dari modal."
-            send_alert(msg)
+            # Dynamic TP di Support Mayor
+            reward = entry_p - major_sup
+            if risk > 0 and reward > 0:
+                rr_ratio = reward / risk
+                if rr_ratio >= 1.5: # Syarat Minimal Kelayakan RR
+                    entry_p, sl_p, tp_p = round(entry_p, dec), round(sl_p, dec), round(major_sup, dec)
+
+                    current_state["active_signals"].append({
+                        "strategy": "Core: OB+Engulfing", "pair": pair_name, "type": "SELL MARKET",
+                        "entry": entry_p, "sl": sl_p, "tp": tp_p, "rr": f"1 : {round(rr_ratio, 1)}", "status": "OPEN"
+                    })
+                    current_state["radar_locks"][pair_lock] = "ACTIVE"
+                    
+                    msg = f"🎯 *[EKSEKUSI: CORE INSTITUTIONAL]*\n\n📊 *Instrumen:* {pair_name}\n⚡ *Aksi:* SELL SEKARANG (Market)\n📍 *Entry:* `{entry_p}`\n🛑 *SL:* `{sl_p}` *(ATR+Spread Protected)*\n💰 *TP:* `{tp_p}` *(Structural Target)*\n\n💡 *Logic:* Supply tervalidasi Engulfing M5.\n🎓 *Risk/Reward:* 1 : {round(rr_ratio, 1)}. Target diletakkan logis di Support terdekat, bukan sekadar baku 1:3."
+                    send_alert(msg)
 
         return current_state
     except Exception as e:
@@ -159,11 +177,9 @@ def run_market_scan():
         {"name": "GBP/USD", "ticker": "GBPUSD=X"}
     ]
     
-    # Batasi memori agar array tidak kelebihan beban
     if len(current_state["active_signals"]) > 10:
         current_state["active_signals"] = current_state["active_signals"][-10:]
 
-    # Jalankan Mesin Utama
     for item in instruments:
         current_state = core_institutional_engine(item["ticker"], item["name"], current_state)
         
