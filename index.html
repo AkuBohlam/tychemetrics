@@ -21,7 +21,7 @@
         <div class="h-8 w-8 rounded bg-gradient-to-tr from-amber-600 to-amber-400 flex items-center justify-center font-bold text-slate-950 mono text-lg shadow-lg shadow-amber-500/20">T</div>
         <div>
           <span class="font-bold text-base tracking-wider text-slate-100">TYCHE<span class="text-amber-400">METRICS</span></span>
-          <span class="hidden sm:inline-block ml-2 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-slate-800 text-slate-400 rounded border border-slate-700">Quant v2.4</span>
+          <span class="hidden sm:inline-block ml-2 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-slate-800 text-slate-400 rounded border border-slate-700">Quant v3.0</span>
         </div>
       </div>
 
@@ -43,20 +43,22 @@
       <div class="bg-slate-900/60 border border-slate-800 rounded-lg p-3">
         <span class="text-[11px] text-slate-500 uppercase tracking-wider block">Market Session</span>
         <span class="mono text-sm font-semibold text-slate-200 flex items-center gap-1.5 mt-0.5">
-          <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span> London / NY Active
+          <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span> London / NY Active
         </span>
       </div>
       <div class="bg-slate-900/60 border border-slate-800 rounded-lg p-3">
         <span class="text-[11px] text-slate-500 uppercase tracking-wider block">Execution Engine</span>
-        <span class="mono text-sm font-semibold text-amber-400 mt-0.5 block">Fibonacci Golden 61.8%</span>
+        <span class="mono text-sm font-semibold text-amber-400 mt-0.5 block">Liquidity Order Block</span>
       </div>
       <div class="bg-slate-900/60 border border-slate-800 rounded-lg p-3">
         <span class="text-[11px] text-slate-500 uppercase tracking-wider block">Weekly Free Quota</span>
         <span id="quotaDisplay" class="mono text-sm font-semibold text-slate-200 mt-0.5 block">2 / 3 Used</span>
       </div>
       <div class="bg-slate-900/60 border border-slate-800 rounded-lg p-3">
-        <span class="text-[11px] text-slate-500 uppercase tracking-wider block">Cloud Radar Cron</span>
-        <span class="mono text-sm font-semibold text-emerald-400 mt-0.5 block">15m Auto Sync</span>
+        <span class="text-[11px] text-slate-500 uppercase tracking-wider block">Bot Memory Status</span>
+        <span id="botStatusDisplay" class="mono text-sm font-semibold text-slate-400 mt-0.5 block flex items-center gap-2">
+          <span class="h-1.5 w-1.5 rounded-full bg-slate-500"></span> STANDBY
+        </span>
       </div>
     </div>
 
@@ -78,14 +80,14 @@
             </div>
           </div>
 
-          <!-- Chart Area: 280px di mobile agar tidak mengunci jari saat scroll, 400px di layar komputer -->
+          <!-- Chart Area -->
           <div class="w-full h-[280px] sm:h-[400px] relative bg-slate-950" id="tv_chart_container"></div>
         </div>
 
         <!-- Alpha Setup Explanation Card -->
-        <div class="bg-slate-900/40 border border-slate-800 rounded-xl p-4">
+        <div class="bg-slate-900/40 border border-slate-800 rounded-xl p-4 border-l-4" id="thesisContainer">
           <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-2">
-            <span class="h-2 w-2 rounded-full bg-amber-400"></span> Algorithmic Setup Thesis
+            <span id="thesisDot" class="h-2 w-2 rounded-full bg-slate-500"></span> Algorithmic Logic
           </h3>
           <p id="thesisText" class="text-sm text-slate-300 leading-relaxed">
             Menghubungkan ke pemindai kuantitatif...
@@ -97,22 +99,22 @@
       <section class="lg:col-span-4 space-y-4">
         
         <!-- Live Signal Blueprint -->
-        <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-5 shadow-xl relative overflow-hidden">
+        <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-5 shadow-xl relative overflow-hidden transition-all duration-500" id="signalCardContainer">
           <div class="flex items-start justify-between mb-4">
             <div>
-              <span id="signalBadge" class="text-[10px] mono uppercase tracking-wider px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded font-semibold">VALID BUY SETUP</span>
-              <h2 id="signalPair" class="text-lg font-bold text-slate-100 mt-1">XAU/USD (Gold)</h2>
+              <span id="signalBadge" class="text-[10px] mono uppercase tracking-wider px-2 py-0.5 bg-slate-800 text-slate-400 border border-slate-700 rounded font-semibold transition-colors duration-300">SYSTEM STANDBY</span>
+              <h2 id="signalPair" class="text-lg font-bold text-slate-100 mt-1">Menunggu Peluang...</h2>
             </div>
             <div class="text-right">
               <span class="text-[10px] text-slate-500 block mono">Risk to Reward</span>
-              <span id="displayRR" class="mono text-base font-bold text-amber-400">1 : 2.8</span>
+              <span id="displayRR" class="mono text-base font-bold text-slate-600">- : -</span>
             </div>
           </div>
 
-          <div class="grid grid-cols-3 gap-2 border-y border-slate-800 py-3.5 mb-4 mono text-center">
+          <div class="grid grid-cols-3 gap-2 border-y border-slate-800 py-3.5 mb-4 mono text-center opacity-50 transition-opacity duration-300" id="signalNumbersGrid">
             <div>
               <span class="text-[10px] text-slate-500 uppercase block">Entry</span>
-              <span id="displayEntry" class="text-sm font-bold text-slate-200">-</span>
+              <span id="displayEntry" class="text-sm font-bold text-slate-400">-</span>
             </div>
             <div>
               <span class="text-[10px] text-rose-500 uppercase block">Stop Loss</span>
@@ -124,9 +126,9 @@
             </div>
           </div>
 
-          <div class="flex items-center justify-between text-xs text-slate-400 mono">
-            <span>Risk Distance: <strong id="riskDistancePips" class="text-slate-200">0.0</strong> Pips</span>
-            <span>Target: <strong id="rewardDistancePips" class="text-emerald-400">0.0</strong> Pips</span>
+          <div class="flex items-center justify-between text-xs text-slate-500 mono transition-opacity duration-300" id="signalDistanceRow">
+            <span>Risk Distance: <strong id="riskDistancePips" class="text-slate-400">0.0</strong> Pips</span>
+            <span>Target: <strong id="rewardDistancePips" class="text-slate-400">0.0</strong> Pips</span>
           </div>
         </div>
 
@@ -154,7 +156,7 @@
               </div>
               <div>
                 <label class="text-[11px] text-slate-400 block mb-1">SL Distance (Pips)</label>
-                <input type="number" id="calcSLPips" value="40" class="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm mono text-slate-100 focus:outline-none focus:border-amber-400 transition" oninput="calculateLotSize()">
+                <input type="number" id="calcSLPips" value="30" class="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm mono text-slate-100 focus:outline-none focus:border-amber-400 transition" oninput="calculateLotSize()">
               </div>
             </div>
 
@@ -165,7 +167,7 @@
               </div>
               <div class="bg-amber-400/5 p-2.5 rounded border border-amber-400/20">
                 <span class="text-[10px] text-amber-400 block">Recommended Lot</span>
-                <span id="resLotSize" class="text-base font-bold text-amber-400">0.02 Lot</span>
+                <span id="resLotSize" class="text-base font-bold text-amber-400">0.03 Lot</span>
               </div>
             </div>
           </div>
@@ -218,14 +220,27 @@
       });
     }
 
-    // Mengambil dan Menampilkan Sinyal Otomatis dari signals.json
+    // Mengambil dan Menampilkan Status Sinyal & Radar Dinamis dari signals.json
     async function loadLatestSignal() {
       try {
         const response = await fetch('signals.json?t=' + new Date().getTime());
         if (!response.ok) return;
         const data = await response.json();
+        
         const signal = data.active_signal;
+        const radar = data.radar || {};
+        
+        // Cek status Radar pada pasangan Gold (Bisa diadaptasi jika multikoin)
+        const goldRadar = radar["GC=F"] || "NEUTRAL";
+        
+        const badge = document.getElementById('signalBadge');
+        const botStatus = document.getElementById('botStatusDisplay');
+        const grid = document.getElementById('signalNumbersGrid');
+        const distRow = document.getElementById('signalDistanceRow');
+        const thesisContainer = document.getElementById('thesisContainer');
+        const thesisDot = document.getElementById('thesisDot');
 
+        // Jika Ada Sinyal Eksekusi Valid (FASE 2)
         if (signal) {
           document.getElementById('signalPair').innerText = signal.pair;
           document.getElementById('displayEntry').innerText = signal.entry;
@@ -235,22 +250,74 @@
           document.getElementById('rewardDistancePips').innerText = signal.reward_pips;
           document.getElementById('thesisText').innerText = signal.reason;
           if (signal.rr) document.getElementById('displayRR').innerText = signal.rr;
+          
+          document.getElementById('displayRR').className = "mono text-base font-bold text-amber-400";
+          grid.classList.remove('opacity-50');
+          distRow.classList.remove('opacity-50');
 
-          const badge = document.getElementById('signalBadge');
+          botStatus.innerHTML = `<span class="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span> EXECUTION TRIGGERED`;
+          thesisContainer.className = "bg-slate-900/40 border border-slate-800 rounded-xl p-4 border-l-4 border-l-emerald-500";
+          thesisDot.className = "h-2 w-2 rounded-full bg-emerald-500 animate-pulse";
+
           if (signal.type === 'SELL') {
-            badge.innerText = 'VALID SELL SETUP';
+            badge.innerText = 'VALID SELL EXECUTION';
             badge.className = 'text-[10px] mono uppercase tracking-wider px-2 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded font-semibold';
           } else {
-            badge.innerText = 'VALID BUY SETUP';
+            badge.innerText = 'VALID BUY EXECUTION';
             badge.className = 'text-[10px] mono uppercase tracking-wider px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded font-semibold';
           }
 
-          document.getElementById('calcSLPips').value = Math.round(signal.risk_pips) || 40;
+          document.getElementById('calcSLPips').value = Math.round(signal.risk_pips) || 30;
           calculateLotSize();
+
+        // Jika Harga Masuk Radar Tapi Belum Konfirmasi Eksekusi (FASE 1)
+        } else if (goldRadar !== "NEUTRAL") {
+          document.getElementById('signalPair').innerText = "Harga di Zona Krusial";
+          document.getElementById('thesisText').innerText = "Radar mendeteksi harga telah mendekati zona likuiditas utama. Sistem sedang menunggu konfirmasi manipulasi (Liquidity Sweep) sebelum memicu instruksi eksekusi.";
+          
+          badge.innerText = 'RADAR MONITORING';
+          badge.className = 'text-[10px] mono uppercase tracking-wider px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded font-semibold animate-pulse';
+          
+          botStatus.innerHTML = `<span class="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span> MONITORING LIQUIDITY`;
+          thesisContainer.className = "bg-amber-900/10 border border-slate-800 rounded-xl p-4 border-l-4 border-l-amber-500";
+          thesisDot.className = "h-2 w-2 rounded-full bg-amber-500 animate-pulse";
+
+          resetSignalNumbers();
+
+        // Jika Harga Jauh Dari Likuiditas (STANDBY)
+        } else {
+          document.getElementById('signalPair').innerText = "Menunggu Peluang...";
+          document.getElementById('thesisText').innerText = "Bot memantau di latar belakang. Tidak ada instrumen yang berada di dekat zona likuiditas utama saat ini. Pasar didominasi keacakan (noise).";
+          
+          badge.innerText = 'SYSTEM STANDBY';
+          badge.className = 'text-[10px] mono uppercase tracking-wider px-2 py-0.5 bg-slate-800 text-slate-400 border border-slate-700 rounded font-semibold';
+          
+          botStatus.innerHTML = `<span class="h-1.5 w-1.5 rounded-full bg-slate-500"></span> STANDBY`;
+          thesisContainer.className = "bg-slate-900/40 border border-slate-800 rounded-xl p-4 border-l-4 border-l-slate-600";
+          thesisDot.className = "h-2 w-2 rounded-full bg-slate-500";
+
+          resetSignalNumbers();
         }
+
       } catch (err) {
         console.log("Menunggu data sinyal:", err);
       }
+    }
+
+    function resetSignalNumbers() {
+      const grid = document.getElementById('signalNumbersGrid');
+      const distRow = document.getElementById('signalDistanceRow');
+      
+      document.getElementById('displayEntry').innerText = "-";
+      document.getElementById('displaySL').innerText = "-";
+      document.getElementById('displayTP').innerText = "-";
+      document.getElementById('riskDistancePips').innerText = "0.0";
+      document.getElementById('rewardDistancePips').innerText = "0.0";
+      document.getElementById('displayRR').innerText = "- : -";
+      document.getElementById('displayRR').className = "mono text-base font-bold text-slate-600";
+      
+      grid.classList.add('opacity-50');
+      distRow.classList.add('opacity-50');
     }
 
     // Presisi Rumus Lot Institusional
@@ -315,6 +382,9 @@
       loadLatestSignal();
       calculateLotSize();
       if (isVip) updateVipUI();
+      
+      // Auto-refresh cek status radar setiap 60 detik agar halaman web selalu up to date walau tidak di-refresh
+      setInterval(loadLatestSignal, 60000);
     };
   </script>
 </body>
