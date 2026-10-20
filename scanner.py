@@ -14,7 +14,7 @@ CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 STATE_FILE = "signals.json"
 
 INSTRUMENTS = [
-    {"name": "XAU (Gold)", "ticker": "GC=F"},
+    {"name": "XAU/USD (Gold)", "ticker": "XAUUSD=X"}, # Ticker Spot Market (Sesuai XM & FBS)
     {"name": "EUR/USD", "ticker": "EURUSD=X"},
     {"name": "GBP/USD", "ticker": "GBPUSD=X"}
 ]
@@ -22,7 +22,6 @@ INSTRUMENTS = [
 # ==========================================
 # 1. DATABASE BAHASA (ANTI-ROBOT)
 # ==========================================
-# --- EDUKASI CORE ENGINE (MARKET EXECUTION) ---
 LANG_BUY_CORE = [
     "Harga turun ke area 'grosir' (Demand) dan candle Engulfing M5 muncul layaknya jejak kaki raksasa. Ini pertanda institusi sedang memborong di harga murah sebelum harga dipompa naik.",
     "Kita berenang searah arus tren! Area diskon H1 telah disentuh, dan konfirmasi Engulfing M5 adalah bukti visual bahwa uang besar (Smart Money) baru saja menyapu penjual ritel yang FOMO.",
@@ -35,22 +34,18 @@ LANG_SELL_CORE = [
     "Banyak trader pemula terjebak membeli di area pucuk ini. Engulfing M5 yang terbentuk adalah sinyal bahwa 'Smart Money' menjebak ritel sebelum tren berlanjut turun."
 ]
 
-# --- EDUKASI IMBALANCE SCALPER (LIMIT ORDER) ---
 LANG_BUY_SCALP = [
     "Institusi meninggalkan celah kosong (Imbalance) saat memompa harga naik. Kita memasang jaring penjemputan persis di pangkal momentum M5.",
     "Terdeteksi jejak Bullish Imbalance segar di H1. Titik pantul disiapkan tepat di area Fractal M5.",
-    "Momentum kencang ke atas menyisakan area diskon yang belum terisi. Limit order ditempatkan pada titik presisi asal mula pergerakan.",
-    "Ketidakseimbangan volume signifikan. Bot membidik area akar Demand M5 untuk menangkap pantulan harga."
+    "Momentum kencang ke atas menyisakan area diskon yang belum terisi. Limit order ditempatkan pada titik presisi asal mula pergerakan."
 ]
 
 LANG_SELL_SCALP = [
     "Harga turun tajam meninggalkan celah Bearish Imbalance. Titik masuk disempurnakan pada Fractal Supply M5.",
     "Institusi membuang muatan dan menciptakan Imbalance H1. Jaring Sell Limit dipasang di akar momentum M5.",
-    "Momentum kencang ke bawah menyisakan area premium yang belum terisi. Limit order ditempatkan untuk membonceng tren turun.",
-    "Terjadi kekosongan likuiditas (Imbalance) di bawah. Bot meletakkan perangkap di pangkal Supply M5."
+    "Momentum kencang ke bawah menyisakan area premium yang belum terisi. Limit order ditempatkan untuk membonceng tren turun."
 ]
 
-# --- PERINGATAN SPREAD (UNIVERSAL UNTUK KEDUA MESIN) ---
 WARN_BUY = [
     "Jangan lupa kalibrasi harga penjemputan Anda. Pastikan Anda menambahkan spread broker masing-masing pada harga Entry agar order tereksekusi dengan sempurna.",
     "Tips Eksekusi: Harga Entry di atas adalah harga mentah grafik (Bid). Wajib tambahkan nilai spread broker Anda pada eksekusi Entry.",
@@ -100,12 +95,12 @@ def calculate_atr_institutional(df, period=14):
     return atr
 
 # ==========================================
-# 3. MESIN 1: CORE INSTITUTIONAL (REAKTIF)
+# 3. MESIN 1: CORE INSTITUTIONAL (REAKTIF M5)
 # ==========================================
 def core_institutional_engine(ticker_symbol, pair_name, current_state):
     try:
         pair_lock = f"CORE_{ticker_symbol}"
-        is_gold = "GC=F" in ticker_symbol
+        is_gold = "XAU" in ticker_symbol
         dec = 2 if is_gold else 5
 
         if current_state["radar_locks"].get(pair_lock) == "ACTIVE":
@@ -169,14 +164,14 @@ def core_institutional_engine(ticker_symbol, pair_name, current_state):
             if current_state["radar_locks"].get(pair_lock) != "RADAR":
                 current_state["radar_locks"][pair_lock] = "RADAR"
                 arah_zona = "Demand (Bersiap Potensi BUY)" if trend == "UPTREND" else "Supply (Bersiap Potensi SELL)"
-                msg = f"⚠️ *[FASE 1: RADAR INSTITUSIONAL AKTIF]*\n\n📊 *Instrumen:* {pair_name}\n🔍 *Status:* Memasuki Zona {arah_zona}\n\n⏳ *Tindakan Anda:* JANGAN ENTRY DULU. Harga memasuki zona krusial tempat bandar sering menjebak trader ritel. Bot sedang mengawasi manipulasi di Timeframe M5. Buka MetaTrader Anda dan tunggu instruksi konfirmasi eksekusi dari bot!"
+                msg = f"⚠️ *[FASE 1: RADAR INSTITUSIONAL AKTIF]*\n\n📊 *Instrumen:* {pair_name}\n🔍 *Status:* Memasuki Zona {arah_zona}\n\n⏳ *Tindakan Anda:* JANGAN ENTRY DULU. Harga memasuki zona krusial tempat bandar menjebak trader ritel. Bot mengawasi manipulasi di Timeframe M5. Bersiap di MetaTrader!"
                 send_alert(msg)
             return current_state
 
         # SETUP BUY CORE
         if trend == "UPTREND" and is_bullish_engulfing:
-            entry = float(curr_m5['Close']) # Naked Price
-            sl = float(curr_m5['Low']) - atr_value # Batas bawah area - ATR
+            entry = float(curr_m5['Close'])
+            sl = float(curr_m5['Low']) - atr_value 
             
             target = major_res
             risk = entry - sl
@@ -197,7 +192,7 @@ def core_institutional_engine(ticker_symbol, pair_name, current_state):
                 warn_text = random.choice(WARN_BUY)
                 
                 current_state["active_signals"].insert(0, {
-                    "strategy": "ALGO: CORE_INSTITUTIONAL | TRIGGER: M5_ENGULFING | VOL: PROTECTED | SPREAD_ADJ: PENDING_USER", 
+                    "strategy": "ALGO: CORE_INSTITUTIONAL | TRIGGER: M5_ENGULFING", 
                     "pair": pair_name, "type": "BUY EXECUTION",
                     "entry": str(entry), "sl": str(sl), "tp": str(tp_final), 
                     "rr": f"1 : {round(rr_final, 1)} ({tp_type})", "status": "OPEN"
@@ -212,14 +207,13 @@ def core_institutional_engine(ticker_symbol, pair_name, current_state):
                 msg += f"💰 *TP:* `{tp_final}` *(Max Capped Target)*\n\n" if tp_type == "CAPPED" else f"💰 *TP:* `{tp_final}` *(Structural Target)*\n\n"
                 msg += f"⚠️ *Peringatan Eksekusi:* {warn_text}\n\n"
                 msg += f"💡 *Logic:* {logic_text}\n"
-                msg += f"🎓 *Risk/Reward:* 1 : {round(rr_final, 1)}. "
-                msg += "(Target ditarik mundur ke batas maksimal 1:5 untuk mengunci probabilitas kemenangan)." if tp_type == "CAPPED" else "(Target diletakkan logis di Resistance terdekat)."
+                msg += f"🎓 *Risk/Reward:* 1 : {round(rr_final, 1)}.\n"
                 send_alert(msg)
 
         # SETUP SELL CORE
         elif trend == "DOWNTREND" and is_bearish_engulfing:
-            entry = float(curr_m5['Close']) # Naked Price
-            sl = float(curr_m5['High']) + atr_value # Batas atas area + ATR
+            entry = float(curr_m5['Close'])
+            sl = float(curr_m5['High']) + atr_value 
             
             target = major_sup
             risk = sl - entry
@@ -240,7 +234,7 @@ def core_institutional_engine(ticker_symbol, pair_name, current_state):
                 warn_text = random.choice(WARN_SELL)
 
                 current_state["active_signals"].insert(0, {
-                    "strategy": "ALGO: CORE_INSTITUTIONAL | TRIGGER: M5_ENGULFING | VOL: PROTECTED | SPREAD_ADJ: PENDING_USER", 
+                    "strategy": "ALGO: CORE_INSTITUTIONAL | TRIGGER: M5_ENGULFING", 
                     "pair": pair_name, "type": "SELL EXECUTION",
                     "entry": str(entry), "sl": str(sl), "tp": str(tp_final), 
                     "rr": f"1 : {round(rr_final, 1)} ({tp_type})", "status": "OPEN"
@@ -255,8 +249,7 @@ def core_institutional_engine(ticker_symbol, pair_name, current_state):
                 msg += f"💰 *TP:* `{tp_final}` *(Max Capped Target)*\n\n" if tp_type == "CAPPED" else f"💰 *TP:* `{tp_final}` *(Structural Target)*\n\n"
                 msg += f"⚠️ *Peringatan Eksekusi:* {warn_text}\n\n"
                 msg += f"💡 *Logic:* {logic_text}\n"
-                msg += f"🎓 *Risk/Reward:* 1 : {round(rr_final, 1)}. "
-                msg += "(Target ditarik mundur ke batas maksimal 1:5 untuk mengunci probabilitas kemenangan)." if tp_type == "CAPPED" else "(Target diletakkan logis di Support terdekat)."
+                msg += f"🎓 *Risk/Reward:* 1 : {round(rr_final, 1)}.\n"
                 send_alert(msg)
 
         return current_state
@@ -265,7 +258,7 @@ def core_institutional_engine(ticker_symbol, pair_name, current_state):
         return current_state
 
 # ==========================================
-# 4. MESIN 2: IMBALANCE SCALPER (PREDIKTIF)
+# 4. MESIN 2: IMBALANCE SCALPER (LIMIT ORDER)
 # ==========================================
 def run_scalp_engine(ticker_symbol, pair_name, current_state):
     try:
@@ -273,7 +266,7 @@ def run_scalp_engine(ticker_symbol, pair_name, current_state):
         if current_state["radar_locks"].get(pair_lock) == "ACTIVE":
             return current_state
 
-        is_gold = "GC=F" in ticker_symbol
+        is_gold = "XAU" in ticker_symbol
         dec = 2 if is_gold else 5
 
         df_h1 = yf.download(ticker_symbol, period="1mo", interval="1h", progress=False)
@@ -296,8 +289,8 @@ def run_scalp_engine(ticker_symbol, pair_name, current_state):
         
         # SETUP BUY LIMIT
         if last_h1['EMA_21'] > last_h1['EMA_50'] and last_h1['Bullish_Imb']:
-            entry = float(last_h1['High']) # Naked Price
-            sl = float(last_h1['Low']) - current_atr # Batas bawah area - ATR
+            entry = float(last_h1['High'])
+            sl = float(last_h1['Low']) - current_atr
             
             resistances = df_h1[df_h1['Fractal_High']]['High']
             target = float(resistances.max()) if not resistances.empty else entry + (current_atr * 3)
@@ -320,7 +313,7 @@ def run_scalp_engine(ticker_symbol, pair_name, current_state):
                 warn_text = random.choice(WARN_BUY)
                 
                 current_state["active_signals"].insert(0, {
-                    "strategy": "ALGO: IMBALANCE_SCALP | TRIGGER: M5_FRACTAL | VOL: FILTERED | SPREAD_ADJ: PENDING_USER", 
+                    "strategy": "ALGO: IMBALANCE_SCALP | TRIGGER: M5_FRACTAL", 
                     "pair": pair_name, "type": "BUY LIMIT",
                     "entry": str(entry), "sl": str(sl), "tp": str(tp_final), 
                     "rr": f"1 : {round(rr_final, 1)} ({tp_type})", "status": "OPEN"
@@ -333,17 +326,16 @@ def run_scalp_engine(ticker_symbol, pair_name, current_state):
                 msg += f"📍 *Entry Limit:* `{entry}` *(Harga Murni Chart + Spread Broker Anda)*\n"
                 msg += f"🛑 *SL:* `{sl}` *(ATR Protected)*\n"
                 msg += f"💰 *TP:* `{tp_final}` *(Max Capped Target)*\n\n" if tp_type == "CAPPED" else f"💰 *TP:* `{tp_final}` *(Structural Target)*\n\n"
-                msg += f"⚠️ *Peringatan Eksekusi:* {warn_text}\n\n"
+                msg += f"⚠️ *Peringatan Eksekusi:* {warn_text}\n"
+                msg += f"⏳ *Batas Validasi:* Segera batalkan pesanan Limit ini jika harga menyentuh TP sebelum menjemput titik Entry.\n\n"
                 msg += f"💡 *Logic:* {logic_text}\n"
-                msg += f"🎓 *Risk/Reward:* 1 : {round(rr_final, 1)}. "
-                msg += "(Target ditarik mundur ke batas maksimal 1:5 untuk mengunci probabilitas)." if tp_type == "CAPPED" else "(Target logis struktur mayor)."
-                
+                msg += f"🎓 *Risk/Reward:* 1 : {round(rr_final, 1)}.\n"
                 send_alert(msg)
 
         # SETUP SELL LIMIT
         elif last_h1['EMA_21'] < last_h1['EMA_50'] and last_h1['Bearish_Imb']:
-            entry = float(last_h1['Low']) # Naked Price
-            sl = float(last_h1['High']) + current_atr # Batas atas area + ATR
+            entry = float(last_h1['Low'])
+            sl = float(last_h1['High']) + current_atr
             
             supports = df_h1[df_h1['Fractal_Low']]['Low']
             target = float(supports.min()) if not supports.empty else entry - (current_atr * 3)
@@ -366,7 +358,7 @@ def run_scalp_engine(ticker_symbol, pair_name, current_state):
                 warn_text = random.choice(WARN_SELL)
                 
                 current_state["active_signals"].insert(0, {
-                    "strategy": "ALGO: IMBALANCE_SCALP | TRIGGER: M5_FRACTAL | VOL: FILTERED | SPREAD_ADJ: PENDING_USER", 
+                    "strategy": "ALGO: IMBALANCE_SCALP | TRIGGER: M5_FRACTAL", 
                     "pair": pair_name, "type": "SELL LIMIT",
                     "entry": str(entry), "sl": str(sl), "tp": str(tp_final), 
                     "rr": f"1 : {round(rr_final, 1)} ({tp_type})", "status": "OPEN"
@@ -379,11 +371,10 @@ def run_scalp_engine(ticker_symbol, pair_name, current_state):
                 msg += f"📍 *Entry Limit:* `{entry}` *(Harga Murni Chart)*\n"
                 msg += f"🛑 *SL:* `{sl}` *(ATR Protected + Spread Broker Anda)*\n"
                 msg += f"💰 *TP:* `{tp_final}` *(Max Capped Target)*\n\n" if tp_type == "CAPPED" else f"💰 *TP:* `{tp_final}` *(Structural Target)*\n\n"
-                msg += f"⚠️ *Peringatan Eksekusi:* {warn_text}\n\n"
+                msg += f"⚠️ *Peringatan Eksekusi:* {warn_text}\n"
+                msg += f"⏳ *Batas Validasi:* Segera batalkan pesanan Limit ini jika harga menyentuh TP sebelum menjemput titik Entry.\n\n"
                 msg += f"💡 *Logic:* {logic_text}\n"
-                msg += f"🎓 *Risk/Reward:* 1 : {round(rr_final, 1)}. "
-                msg += "(Target ditarik mundur ke batas maksimal 1:5 untuk mengunci probabilitas)." if tp_type == "CAPPED" else "(Target logis struktur mayor)."
-                
+                msg += f"🎓 *Risk/Reward:* 1 : {round(rr_final, 1)}.\n"
                 send_alert(msg)
 
         return current_state
