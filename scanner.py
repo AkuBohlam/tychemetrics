@@ -42,6 +42,7 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
 
+        # Mencari area Support dan Resistance mayor
         lookback_period = -100
         major_resistance = float(df['High'].iloc[lookback_period:-5].max())
         major_support = float(df['Low'].iloc[lookback_period:-5].min())
@@ -57,7 +58,6 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
         decimals = 2 if is_gold else 5
         
         radar_distance = 3.0 if is_gold else 0.0030 
-
         pair_key = ticker_symbol
         radar_status = current_state.get("radar", {}).get(pair_key, "NEUTRAL")
 
@@ -88,7 +88,7 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
             return current_state
 
         # ==========================================
-        # KONFIRMASI EKSEKUSI (LIQUIDITY SWEEP)
+        # KONFIRMASI EKSEKUSI (DYNAMIC TP & RR MINIMAL)
         # ==========================================
         
         if radar_status == "WATCHING_RESISTANCE":
@@ -96,7 +96,16 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
                 entry_price = round(close_price, decimals)
                 sl_price = round(high_price + (1.5 if is_gold else 0.0015), decimals)
                 risk_dist = abs(sl_price - entry_price)
-                tp_price = round(entry_price - (risk_dist * 2.5), decimals)
+                
+                # DYNAMIC TP: Target di Support mayor dikurangi sedikit jarak aman
+                tp_price = round(major_support + (1.0 if is_gold else 0.0010), decimals)
+                reward_dist = abs(entry_price - tp_price)
+                
+                # Filter Perlindungan Modal: Jangan eksekusi jika RR < 1:2
+                actual_rr = reward_dist / risk_dist if risk_dist > 0 else 0
+                if actual_rr < 2.0:
+                    current_state["radar"][pair_key] = "NEUTRAL"
+                    return current_state # Batal kirim sinyal karena rasio buram
 
                 setup = {
                     "pair": pair_name,
@@ -105,9 +114,9 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
                     "sl": sl_price,
                     "tp": tp_price,
                     "risk_pips": round(risk_dist * multiplier, 1),
-                    "reward_pips": round(abs(entry_price - tp_price) * multiplier, 1),
-                    "rr": "1 : 2.5",
-                    "reason": f"Konfirmasi Liquidity Sweep. Harga memakan likuiditas atas di {round(major_resistance, decimals)} namun ditolak kuat ke bawah."
+                    "reward_pips": round(reward_dist * multiplier, 1),
+                    "rr": f"1 : {round(actual_rr, 1)}",
+                    "reason": f"Liquidity Sweep di ekor Resistance ({round(major_resistance, decimals)}). Target Take Profit dinamis di area Support terdekat."
                 }
                 current_state["active_signal"] = setup
                 current_state["radar"][pair_key] = "NEUTRAL"
@@ -118,7 +127,8 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
                     f"⚡ *Aksi:* VALID {setup['type']}\n"
                     f"📍 *Level Entry:* `{setup['entry']}`\n"
                     f"🛑 *Stop Loss (SL):* `{setup['sl']}` ({setup['risk_pips']} Pips)\n"
-                    f"💰 *Take Profit (TP):* `{setup['tp']}` ({setup['reward_pips']} Pips)\n\n"
+                    f"💰 *Take Profit (TP):* `{setup['tp']}` ({setup['reward_pips']} Pips)\n"
+                    f"⚖️ *Risk to Reward:* {setup['rr']}\n\n"
                     f"💡 *Logika:* {setup['reason']}"
                 )
                 send_alert(pesan_eksekusi)
@@ -129,7 +139,16 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
                 entry_price = round(close_price, decimals)
                 sl_price = round(low_price - (1.5 if is_gold else 0.0015), decimals)
                 risk_dist = abs(entry_price - sl_price)
-                tp_price = round(entry_price + (risk_dist * 2.5), decimals)
+                
+                # DYNAMIC TP: Target di Resistance mayor dikurangi sedikit jarak aman
+                tp_price = round(major_resistance - (1.0 if is_gold else 0.0010), decimals)
+                reward_dist = abs(tp_price - entry_price)
+                
+                # Filter Perlindungan Modal: Jangan eksekusi jika RR < 1:2
+                actual_rr = reward_dist / risk_dist if risk_dist > 0 else 0
+                if actual_rr < 2.0:
+                    current_state["radar"][pair_key] = "NEUTRAL"
+                    return current_state # Batal kirim sinyal karena rasio buruk
 
                 setup = {
                     "pair": pair_name,
@@ -138,9 +157,9 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
                     "sl": sl_price,
                     "tp": tp_price,
                     "risk_pips": round(risk_dist * multiplier, 1),
-                    "reward_pips": round(abs(tp_price - entry_price) * multiplier, 1),
-                    "rr": "1 : 2.5",
-                    "reason": f"Konfirmasi Liquidity Sweep. Harga memakan SL ritel di bawah {round(major_support, decimals)} dan ditolak kuat kembali ke atas."
+                    "reward_pips": round(reward_dist * multiplier, 1),
+                    "rr": f"1 : {round(actual_rr, 1)}",
+                    "reason": f"Liquidity Sweep di ekor Support ({round(major_support, decimals)}). Target Take Profit dinamis di area Resistance terdekat."
                 }
                 current_state["active_signal"] = setup
                 current_state["radar"][pair_key] = "NEUTRAL"
@@ -151,7 +170,8 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
                     f"⚡ *Aksi:* VALID {setup['type']}\n"
                     f"📍 *Level Entry:* `{setup['entry']}`\n"
                     f"🛑 *Stop Loss (SL):* `{setup['sl']}` ({setup['risk_pips']} Pips)\n"
-                    f"💰 *Take Profit (TP):* `{setup['tp']}` ({setup['reward_pips']} Pips)\n\n"
+                    f"💰 *Take Profit (TP):* `{setup['tp']}` ({setup['reward_pips']} Pips)\n"
+                    f"⚖️ *Risk to Reward:* {setup['rr']}\n\n"
                     f"💡 *Logika:* {setup['reason']}"
                 )
                 send_alert(pesan_eksekusi)
