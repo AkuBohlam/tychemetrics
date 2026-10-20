@@ -7,129 +7,182 @@ from datetime import datetime
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+STATE_FILE = "signals.json"
 
 def send_alert(message):
     if not BOT_TOKEN or not CHAT_ID:
         return
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": CHAT_ID,
-        "text": message,
-        "parse_mode": "Markdown"
-    }
+    payload = {"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"}
     try:
         requests.post(url, json=payload, timeout=10)
     except Exception as e:
         print(f"Gagal mengirim Telegram: {e}")
 
-def update_signals_json(setup):
-    data = {
-        "updated_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
-        "active_signal": setup
-    }
-    with open("signals.json", "w") as f:
-        json.dump(data, f, indent=2)
-    print("Berhasil memperbarui signals.json")
+def load_state():
+    if os.path.exists(STATE_FILE):
+        try:
+            with open(STATE_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"updated_at": "", "active_signal": None, "radar": {}}
 
-def calculate_technical_setup(ticker_symbol, pair_name):
+def save_state(state_data):
+    state_data["updated_at"] = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    with open(STATE_FILE, "w") as f:
+        json.dump(state_data, f, indent=2)
+
+def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
     try:
+        # Mengambil data 5 hari dengan interval 15 menit
         df = yf.download(ticker_symbol, period="5d", interval="15m", progress=False)
         if df.empty or len(df) < 100:
-            return None
+            return current_state
 
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
 
-        # Indikator EMA 50 & EMA 200
-        df['EMA50'] = df['Close'].ewm(span=50, adjust=False).mean()
-        df['EMA200'] = df['Close'].ewm(span=200, adjust=False).mean()
+        # Mencari area Likuiditas Utama (Support & Resistance Struktural 3 hari terakhir)
+        lookback_period = -100 # Sekitar 3 hari perdagangan
+        major_resistance = float(df['High'].iloc[lookback_period:-5].max())
+        major_support = float(df['Low'].iloc[lookback_period:-5].min())
 
-        # Indikator RSI 14
-        delta = df['Close'].diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-        rs = gain / loss
-        df['RSI'] = 100 - (100 / (1 + rs))
-
-        last_row = df.iloc[-1]
-        close_price = float(last_row['Close'])
-        open_price = float(last_row['Open'])
-        ema50 = float(last_row['EMA50'])
-        ema200 = float(last_row['EMA200'])
-        rsi = float(last_row['RSI'])
-
-        swing_high = float(df['High'].iloc[-30:].max())
-        swing_low = float(df['Low'].iloc[-30:].min())
-        diff = swing_high - swing_low
-
-        if diff <= 0:
-            return None
-
-        fib_50 = swing_high - (diff * 0.50)
-        fib_786 = swing_high - (diff * 0.786)
-        fib_sell_50 = swing_low + (diff * 0.50)
-        fib_sell_786 = swing_low + (diff * 0.786)
+        last_candle = df.iloc[-1]
+        prev_candle = df.iloc[-2]
+        
+        close_price = float(last_candle['Close'])
+        high_price = float(last_candle['High'])
+        low_price = float(last_candle['Low'])
+        open_price = float(last_candle['Open'])
 
         is_gold = "GC=F" in ticker_symbol
         multiplier = 10.0 if is_gold else 10000.0
         decimals = 2 if is_gold else 5
+        
+        # Jarak radar (Peringatan dini sekitar 30 pips sebelum zona likuiditas)
+        radar_distance = 3.0 if is_gold else 0.0030 
 
-        # BUY SETUP
-        if (ema50 > ema200 and close_price > ema200) and \
-           (fib_786 <= close_price <= fib_50) and \
-           (close_price > open_price) and \
-           (38 <= rsi <= 52):
+        pair_key = ticker_symbol
+        radar_status = current_state.get("radar", {}).get(pair_key, "NEUTRAL")
 
-            entry_price = round(close_price, decimals)
-            sl_price = round(swing_low - (diff * 0.05), decimals)
-            risk_dist = abs(entry_price - sl_price)
-            if risk_dist <= 0: return None
+        # ==========================================
+        # FASE 1: RADAR PANTAUAN (EARLY WARNING)
+        # ==========================================
+        
+        # Deteksi harga mendekati Resistance (Potensi SELL)
+        if radar_status == "NEUTRAL" and (major_resistance - close_price) <= radar_distance and close_price < major_resistance:
+            pesan_radar = (
+                f"⚠️ *[FASE 1: RADAR INSTITUSIONAL]*\n\n"
+                f"🔍 *Instrumen:* {pair_name}\n"
+                f"📈 *Status:* Mendekati Zona Likuiditas Atas (Resistance: `{round(major_resistance, decimals)}`).\n\n"
+                f"⏳ *Tindakan:* Jangan eksekusi apapun. Pantau chart Anda. Kita menunggu manipulasi harga (Stop Hunt) di area ini sebelum konfirmasi SELL."
+            )
+            send_alert(pesan_radar)
+            current_state["radar"][pair_key] = "WATCHING_RESISTANCE"
+            return current_state
 
-            tp_price = round(entry_price + (risk_dist * 2.8), decimals)
-            return {
-                "pair": pair_name,
-                "type": "BUY",
-                "entry": entry_price,
-                "sl": sl_price,
-                "tp": tp_price,
-                "risk_pips": round(risk_dist * multiplier, 1),
-                "reward_pips": round(abs(tp_price - entry_price) * multiplier, 1),
-                "rr": "1 : 2.8",
-                "fib_zone": "Fibonacci 61.8% Golden Pocket",
-                "reason": f"Struktur Makro Bullish (di atas EMA 200). Pantulan valid di Golden Pocket dengan pola candle rejection dan RSI {round(rsi, 1)}."
-            }
+        # Deteksi harga mendekati Support (Potensi BUY)
+        elif radar_status == "NEUTRAL" and (close_price - major_support) <= radar_distance and close_price > major_support:
+            pesan_radar = (
+                f"⚠️ *[FASE 1: RADAR INSTITUSIONAL]*\n\n"
+                f"🔍 *Instrumen:* {pair_name}\n"
+                f"📉 *Status:* Mendekati Zona Likuiditas Bawah (Support: `{round(major_support, decimals)}`).\n\n"
+                f"⏳ *Tindakan:* Jangan eksekusi apapun. Pantau chart Anda. Kita menunggu manipulasi harga (Stop Hunt) di area ini sebelum konfirmasi BUY."
+            )
+            send_alert(pesan_radar)
+            current_state["radar"][pair_key] = "WATCHING_SUPPORT"
+            return current_state
 
-        # SELL SETUP
-        elif (ema50 < ema200 and close_price < ema200) and \
-             (fib_sell_50 <= close_price <= fib_sell_786) and \
-             (close_price < open_price) and \
-             (48 <= rsi <= 62):
+        # ==========================================
+        # FASE 2: KONFIRMASI EKSEKUSI (LIQUIDITY SWEEP)
+        # ==========================================
+        
+        # Eksekusi SELL (Jika sebelumnya memantau Resistance)
+        if radar_status == "WATCHING_RESISTANCE":
+            # Syarat: Harga sempat menyapu Resistance (High > Resistance) tapi ditutup kembali ke bawah (Close < Resistance) dengan body merah (Close < Open)
+            if high_price > major_resistance and close_price < major_resistance and close_price < open_price:
+                entry_price = round(close_price, decimals)
+                sl_price = round(high_price + (1.5 if is_gold else 0.0015), decimals) # SL aman di atas sumbu manipulasi
+                risk_dist = abs(sl_price - entry_price)
+                tp_price = round(entry_price - (risk_dist * 2.5), decimals) # Risk Reward 1:2.5
 
-            entry_price = round(close_price, decimals)
-            sl_price = round(swing_high + (diff * 0.05), decimals)
-            risk_dist = abs(sl_price - entry_price)
-            if risk_dist <= 0: return None
+                setup = {
+                    "pair": pair_name,
+                    "type": "SELL",
+                    "entry": entry_price,
+                    "sl": sl_price,
+                    "tp": tp_price,
+                    "risk_pips": round(risk_dist * multiplier, 1),
+                    "reward_pips": round(abs(entry_price - tp_price) * multiplier, 1),
+                    "rr": "1 : 2.5",
+                    "reason": f"Konfirmasi Liquidity Sweep (Manipulasi Institusi). Harga menembus likuiditas atas di {round(major_resistance, decimals)} namun ditolak kuat ke bawah."
+                }
+                current_state["active_signal"] = setup
+                current_state["radar"][pair_key] = "NEUTRAL" # Reset radar
+                
+                pesan_eksekusi = (
+                    f"🎯 *[FASE 2: VALID EXECUTION]*\n\n"
+                    f"📊 *Instrumen:* {setup['pair']}\n"
+                    f"⚡ *Aksi:* VALID {setup['type']}\n"
+                    f"📍 *Level Entry:* `{setup['entry']}`\n"
+                    f"🛑 *Stop Loss (SL):* `{setup['sl']}` ({setup['risk_pips']} Pips)\n"
+                    f"💰 *Take Profit (TP):* `{setup['tp']}` ({setup['reward_pips']} Pips)\n\n"
+                    f"💡 *Logika:* {setup['reason']}"
+                )
+                send_alert(pesan_eksekusi)
+                return current_state
 
-            tp_price = round(entry_price - (risk_dist * 2.8), decimals)
-            return {
-                "pair": pair_name,
-                "type": "SELL",
-                "entry": entry_price,
-                "sl": sl_price,
-                "tp": tp_price,
-                "risk_pips": round(risk_dist * multiplier, 1),
-                "reward_pips": round(abs(entry_price - tp_price) * multiplier, 1),
-                "rr": "1 : 2.8",
-                "fib_zone": "Fibonacci 61.8% Rejection Pocket",
-                "reason": f"Struktur Makro Bearish (di bawah EMA 200). Penolakan harga terverifikasi di Golden Pocket dengan candle rejection dan RSI {round(rsi, 1)}."
-            }
+        # Eksekusi BUY (Jika sebelumnya memantau Support)
+        elif radar_status == "WATCHING_SUPPORT":
+            # Syarat: Harga sempat menyapu Support (Low < Support) tapi ditutup kembali ke atas (Close > Support) dengan body hijau (Close > Open)
+            if low_price < major_support and close_price > major_support and close_price > open_price:
+                entry_price = round(close_price, decimals)
+                sl_price = round(low_price - (1.5 if is_gold else 0.0015), decimals) # SL aman di bawah sumbu manipulasi
+                risk_dist = abs(entry_price - sl_price)
+                tp_price = round(entry_price + (risk_dist * 2.5), decimals)
 
-        return None
+                setup = {
+                    "pair": pair_name,
+                    "type": "BUY",
+                    "entry": entry_price,
+                    "sl": sl_price,
+                    "tp": tp_price,
+                    "risk_pips": round(risk_dist * multiplier, 1),
+                    "reward_pips": round(abs(tp_price - entry_price) * multiplier, 1),
+                    "rr": "1 : 2.5",
+                    "reason": f"Konfirmasi Liquidity Sweep (Manipulasi Institusi). Harga memakan SL retail di bawah {round(major_support, decimals)} dan ditolak kuat kembali ke atas."
+                }
+                current_state["active_signal"] = setup
+                current_state["radar"][pair_key] = "NEUTRAL" # Reset radar
+                
+                pesan_eksekusi = (
+                    f"🎯 *[FASE 2: VALID EXECUTION]*\n\n"
+                    f"📊 *Instrumen:* {setup['pair']}\n"
+                    f"⚡ *Aksi:* VALID {setup['type']}\n"
+                    f"📍 *Level Entry:* `{setup['entry']}`\n"
+                    f"🛑 *Stop Loss (SL):* `{setup['sl']}` ({setup['risk_pips']} Pips)\n"
+                    f"💰 *Take Profit (TP):* `{setup['tp']}` ({setup['reward_pips']} Pips)\n\n"
+                    f"💡 *Logika:* {setup['reason']}"
+                )
+                send_alert(pesan_eksekusi)
+                return current_state
+
+        # Reset radar jika harga menjauh tanpa terjadi sweep
+        if radar_status == "WATCHING_RESISTANCE" and (major_resistance - close_price) > (radar_distance * 2):
+            current_state["radar"][pair_key] = "NEUTRAL"
+        elif radar_status == "WATCHING_SUPPORT" and (close_price - major_support) > (radar_distance * 2):
+            current_state["radar"][pair_key] = "NEUTRAL"
+
+        return current_state
+
     except Exception as e:
         print(f"Error menganalisis {pair_name}: {e}")
-        return None
+        return current_state
 
 def run_market_scan():
+    current_state = load_state()
+    
     instruments = [
         {"name": "XAU/USD (Gold)", "ticker": "GC=F"},
         {"name": "EUR/USD", "ticker": "EURUSD=X"},
@@ -137,26 +190,9 @@ def run_market_scan():
     ]
 
     for item in instruments:
-        setup = calculate_technical_setup(item["ticker"], item["name"])
-        if setup:
-            # 1. Update data untuk Web
-            update_signals_json(setup)
-            
-            # 2. Kirim notifikasi ke Telegram
-            pesan = (
-                f"🏛️ *TYCHEMETRICS INSTITUTIONAL EXECUTION*\n\n"
-                f"📊 *Instrumen:* {setup['pair']}\n"
-                f"⚡ *Sinyal:* VALID {setup['type']}\n"
-                f"📐 *Setup:* {setup['fib_zone']}\n"
-                f"🎯 *Level Entry:* `{setup['entry']}`\n"
-                f"🛑 *Batas Rugi (SL):* `{setup['sl']}` ({setup['risk_pips']} Pips)\n"
-                f"💰 *Target Untung (TP):* `{setup['tp']}` ({setup['reward_pips']} Pips)\n"
-                f"⚖️ *Risk to Reward:* {setup['rr']}\n\n"
-                f"💡 *Alasan Algoritma:*\n{setup['reason']}\n\n"
-                f"🛡️ *Manajemen Risiko:* Eksekusi disiplin dengan risiko maksimal 1.0% modal via kalkulator TycheMetrics."
-            )
-            send_alert(pesan)
-            break
+        current_state = calculate_liquidity_setup(item["ticker"], item["name"], current_state)
+        
+    save_state(current_state)
 
 if __name__ == "__main__":
     run_market_scan()
