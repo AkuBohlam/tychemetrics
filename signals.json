@@ -1,15 +1,4 @@
 {
-  "updated_at": "2026-10-20 08:04 UTC",
-  "active_signal": {
-    "pair": "XAU/USD (Gold)",
-    "type": "SELL",
-    "entry": 4162.2,
-    "sl": 4169.79,
-    "tp": 4140.95,
-    "risk_pips": 75.9,
-    "reward_pips": 212.5,
-    "rr": "1 : 2.8",
-    "fib_zone": "Fibonacci 61.8% Rejection Pocket",
-    "reason": "Struktur Makro Bearish (di bawah EMA 200). Penolakan harga terverifikasi di Golden Pocket dengan candle rejection dan RSI 56.3."
-  }
+  "updated_at": "2026-10-20 08:45 UTC",
+  "active_signal": null
 }
