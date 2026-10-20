@@ -164,6 +164,12 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
                     current_state["radar"][pair_key] = "NEUTRAL"
                     return current_state 
 
+                # Logika Web: Singkat, Institusional
+                web_reason = f"Bearish Liquidity Sweep terkonfirmasi di Resistance ({round(major_resistance, decimals)}). Rejeksi volume tinggi tervalidasi. Setup SELL aktif."
+                
+                # Logika Telegram: Edukatif, Panjang
+                telegram_reason = "Jebakan bandar terkonfirmasi! Harga sengaja didorong naik menembus area Resistance untuk memancing optimisme dari trader awam. Begitu likuiditas terkumpul, harga langsung ditolak kuat dan dibanting turun. Ini bukti jejak institusi besar (Liquidity Sweep)."
+
                 setup = {
                     "pair": pair_name,
                     "type": "SELL",
@@ -173,6 +179,7 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
                     "risk_pips": round(risk_dist * multiplier, 1),
                     "reward_pips": round(reward_dist * multiplier, 1),
                     "rr": f"1 : {round(actual_rr, 1)}",
+                    "reason": web_reason, # Dikirim ke UI Web Terminal
                     "escort_sent": False
                 }
                 current_state["active_signal"] = setup
@@ -185,7 +192,7 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
                     f"📍 *Level Entry:* `{setup['entry']}`\n"
                     f"🛑 *Stop Loss (SL):* `{setup['sl']}` ({setup['risk_pips']} Pips)\n"
                     f"💰 *Take Profit (TP):* `{setup['tp']}` ({setup['reward_pips']} Pips)\n\n"
-                    f"💡 *Smart Money Logic:* Jebakan bandar terkonfirmasi! Harga sengaja didorong naik menembus area Resistance untuk memancing optimisme dari trader awam. Begitu likuiditas terkumpul, harga langsung ditolak kuat dan dibanting turun. Ini bukti jejak institusi besar (Liquidity Sweep).\n\n"
+                    f"💡 *Smart Money Logic:* {telegram_reason}\n\n"
                     f"🎓 *Edukasi Risiko:* Rasio keuntungan terhadap risiko kita adalah {setup['rr']}. Jangan tergiur lot besar. Gunakan Kalkulator Web kami untuk memastikan risiko Anda maksimal hanya 1% dari total modal."
                 )
                 send_alert(pesan_eksekusi)
@@ -205,6 +212,12 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
                     current_state["radar"][pair_key] = "NEUTRAL"
                     return current_state 
 
+                # Logika Web: Singkat, Institusional
+                web_reason = f"Bullish Liquidity Sweep terkonfirmasi di Support ({round(major_support, decimals)}). Rejeksi volume tinggi tervalidasi. Setup BUY aktif."
+                
+                # Logika Telegram: Edukatif, Panjang
+                telegram_reason = "Jebakan bandar terkonfirmasi! Harga sengaja didorong turun menembus area Support untuk memancing kepanikan (panic selling) dari trader awam. Begitu likuiditas terkumpul, harga langsung ditolak kuat dan ditarik naik. Ini bukti jejak institusi besar (Liquidity Sweep)."
+
                 setup = {
                     "pair": pair_name,
                     "type": "BUY",
@@ -214,6 +227,7 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
                     "risk_pips": round(risk_dist * multiplier, 1),
                     "reward_pips": round(reward_dist * multiplier, 1),
                     "rr": f"1 : {round(actual_rr, 1)}",
+                    "reason": web_reason, # Dikirim ke UI Web Terminal
                     "escort_sent": False
                 }
                 current_state["active_signal"] = setup
@@ -226,7 +240,7 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
                     f"📍 *Level Entry:* `{setup['entry']}`\n"
                     f"🛑 *Stop Loss (SL):* `{setup['sl']}` ({setup['risk_pips']} Pips)\n"
                     f"💰 *Take Profit (TP):* `{setup['tp']}` ({setup['reward_pips']} Pips)\n\n"
-                    f"💡 *Smart Money Logic:* Jebakan bandar terkonfirmasi! Harga sengaja didorong turun menembus area Support untuk memancing kepanikan (panic selling) dari trader awam. Begitu likuiditas terkumpul, harga langsung ditolak kuat dan ditarik naik. Ini bukti jejak institusi besar (Liquidity Sweep).\n\n"
+                    f"💡 *Smart Money Logic:* {telegram_reason}\n\n"
                     f"🎓 *Edukasi Risiko:* Rasio keuntungan terhadap risiko kita adalah {setup['rr']}. Jangan tergiur lot besar. Gunakan Kalkulator Web kami untuk memastikan risiko Anda maksimal hanya 1% dari total modal."
                 )
                 send_alert(pesan_eksekusi)
