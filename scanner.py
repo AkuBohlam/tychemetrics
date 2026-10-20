@@ -4,10 +4,28 @@ import requests
 import yfinance as yf
 import pandas as pd
 from datetime import datetime
+import random
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 STATE_FILE = "signals.json"
+
+# ==========================================
+# 0. DATABASE EDUKASI AWAM (RANDOMIZER)
+# ==========================================
+edukasi_buy = [
+    "Harga turun ke area 'grosir' (Demand) dan candle Engulfing M5 muncul layaknya jejak kaki raksasa. Ini pertanda institusi sedang memborong di harga murah sebelum harga dipompa naik.",
+    "Kita berenang searah arus tren! Area diskon H1 telah disentuh, dan konfirmasi Engulfing M5 adalah bukti visual bahwa uang besar (Smart Money) baru saja menyapu penjual ritel yang FOMO.",
+    "Prinsip dagang yang sehat: beli saat murah. Zona Order Block ini memancing seller awam untuk lanjut jual, namun candle Engulfing M5 mengonfirmasi bahwa bandar mengambil alih kontrol untuk memantulkan harga.",
+    "Tidak perlu menebak dasar jurang. Kita membiarkan harga masuk ke zona Pantauan H1, lalu menunggu konfirmasi pola momentum Engulfing M5 sebagai tanda bahwa institusi sudah selesai mengumpulkan barang."
+]
+
+edukasi_sell = [
+    "Harga naik ke area 'mahal' (Supply) dan memancing pembeli ritel (FOMO). Candle Engulfing merah di M5 adalah konfirmasi bahwa institusi mulai melakukan aksi buang barang secara besar-besaran.",
+    "Tren besar sedang turun. Harga menyentuh batas atap (Resistance) H1 dan membentuk pola penolakan tajam (Engulfing M5). Ini menunjukkan pemain besar sudah siap membanting harga kembali ke bawah.",
+    "Banyak trader pemula terjebak membeli di area pucuk ini. Engulfing M5 yang terbentuk adalah sinyal bahwa 'Smart Money' menjebak ritel sebelum tren berlanjut turun.",
+    "Sabar adalah kunci. Harga telah menguji area Supply H1, dan konfirmasi pola Engulfing di M5 membuktikan bahwa momentum perlawanan dari institusi telah mendominasi."
+]
 
 # ==========================================
 # 1. INFRASTRUKTUR & MANAJEMEN MEMORI
@@ -36,21 +54,17 @@ def save_state(state_data):
     with open(STATE_FILE, "w") as f:
         json.dump(state_data, f, indent=2)
 
-# Perhitungan ATR Institusional (Wilder's Smoothing murni ala MT5)
 def calculate_atr_institutional(df, period=14):
     high_low = df['High'] - df['Low']
     high_close = (df['High'] - df['Close'].shift()).abs()
     low_close = (df['Low'] - df['Close'].shift()).abs()
-    
     ranges = pd.concat([high_low, high_close, low_close], axis=1)
     true_range = ranges.max(axis=1)
-    
-    # Menggunakan metode RMA/EWM persis seperti rumus J. Welles Wilder Jr.
     atr = true_range.ewm(alpha=1/period, adjust=False).mean()
     return atr
 
 # ==========================================
-# 2. CORE ENGINE: INSTITUTIONAL 3 PILAR + DYNAMIC RR
+# 2. CORE ENGINE: 3 PILAR + FASE PERINGATAN
 # ==========================================
 def core_institutional_engine(ticker_symbol, pair_name, current_state):
     try:
@@ -59,11 +73,9 @@ def core_institutional_engine(ticker_symbol, pair_name, current_state):
         dec = 2 if is_gold else 5
         spread_allowance = 0.50 if is_gold else 0.00005
 
-        # Anti-Spam: Jika sudah aktif, kunci dan skip
         if current_state["radar_locks"].get(pair_lock) == "ACTIVE":
             return current_state
 
-        # --- PILAR 1: TREN (TIMEFRAME H1) ---
         df_h1 = yf.download(ticker_symbol, period="1mo", interval="1h", progress=False)
         if df_h1.empty or len(df_h1) < 200: return current_state
         if isinstance(df_h1.columns, pd.MultiIndex): df_h1.columns = df_h1.columns.get_level_values(0)
@@ -80,8 +92,7 @@ def core_institutional_engine(ticker_symbol, pair_name, current_state):
 
         if trend == "NONE": return current_state
 
-        # --- PILAR 2 & DYNAMIC RR (STRUKTUR H1) ---
-        lookback = 48 # Struktur 2 hari terakhir (48 jam)
+        lookback = 48
         major_res = float(df_h1['High'].iloc[-lookback:-2].max())
         major_sup = float(df_h1['Low'].iloc[-lookback:-2].min())
 
@@ -94,16 +105,19 @@ def core_institutional_engine(ticker_symbol, pair_name, current_state):
             ob_bot = ob_top - (5.0 if is_gold else 0.0020)
 
         current_price = float(df_h1['Close'].iloc[-1])
+        
+        # JIKA HARGA KELUAR DARI ZONA (BATAL)
         if not (ob_bot <= current_price <= ob_top):
-            return current_state # Harga belum masuk zona Supply/Demand
+            if current_state["radar_locks"].get(pair_lock) == "RADAR":
+                current_state["radar_locks"].pop(pair_lock, None) # Reset Radar
+            return current_state 
 
-        # --- PILAR 3: ENGULFING & ATR (TIMEFRAME M5) ---
+        # --- PILAR 3: ENGULFING & ATR (M5) ---
         df_m5 = yf.download(ticker_symbol, period="5d", interval="5m", progress=False)
         if df_m5.empty: return current_state
         if isinstance(df_m5.columns, pd.MultiIndex): df_m5.columns = df_m5.columns.get_level_values(0)
         
         df_m5['ATR'] = calculate_atr_institutional(df_m5, 14)
-        
         prev_m5 = df_m5.iloc[-2] 
         curr_m5 = df_m5.iloc[-1] 
         atr_value = float(curr_m5['ATR'])
@@ -118,47 +132,56 @@ def core_institutional_engine(ticker_symbol, pair_name, current_state):
                                (curr_m5['Close'] < prev_m5['Open']) and \
                                (curr_m5['Open'] >= prev_m5['Close'])
 
-        # --- EKSEKUSI DENGAN FILTER RR DINAMIS ---
+        # --- FASE 1: RADAR (HARGA MASUK ZONA TAPI BELUM ENGULFING) ---
+        if not (is_bullish_engulfing or is_bearish_engulfing):
+            if current_state["radar_locks"].get(pair_lock) != "RADAR":
+                current_state["radar_locks"][pair_lock] = "RADAR"
+                arah_zona = "Demand (Bersiap Potensi BUY)" if trend == "UPTREND" else "Supply (Bersiap Potensi SELL)"
+                msg = f"⚠️ *[FASE 1: RADAR INSTITUSIONAL AKTIF]*\n\n📊 *Instrumen:* {pair_name}\n🔍 *Status:* Memasuki Zona {arah_zona}\n\n⏳ *Tindakan Anda:* JANGAN ENTRY DULU. Harga memasuki zona krusial tempat bandar sering menjebak trader ritel. Bot sedang mengawasi manipulasi di Timeframe M5. Buka MetaTrader Anda dan tunggu instruksi konfirmasi eksekusi dari bot!"
+                send_alert(msg)
+            return current_state
+
+        # --- FASE 2: EKSEKUSI (ENGULFING TERBENTUK DI DALAM ZONA) ---
         if trend == "UPTREND" and is_bullish_engulfing:
             entry_p = float(curr_m5['Close']) + spread_allowance
             sl_p = float(curr_m5['Low']) - atr_value
             risk = abs(entry_p - sl_p)
-            
-            # Dynamic TP di Resistance Mayor
             reward = major_res - entry_p
+            
             if risk > 0 and reward > 0:
                 rr_ratio = reward / risk
-                if rr_ratio >= 1.5: # Syarat Minimal Kelayakan RR
+                if rr_ratio >= 1.5:
                     entry_p, sl_p, tp_p = round(entry_p, dec), round(sl_p, dec), round(major_res, dec)
+                    edu_text = random.choice(edukasi_buy)
                     
                     current_state["active_signals"].append({
-                        "strategy": "Core: OB+Engulfing", "pair": pair_name, "type": "BUY MARKET",
+                        "strategy": "Core: OB+Engulfing", "pair": pair_name, "type": "POTENSI BUY",
                         "entry": entry_p, "sl": sl_p, "tp": tp_p, "rr": f"1 : {round(rr_ratio, 1)}", "status": "OPEN"
                     })
                     current_state["radar_locks"][pair_lock] = "ACTIVE"
                     
-                    msg = f"🎯 *[EKSEKUSI: CORE INSTITUTIONAL]*\n\n📊 *Instrumen:* {pair_name}\n⚡ *Aksi:* BUY SEKARANG (Market)\n📍 *Entry:* `{entry_p}` *(+Spread)*\n🛑 *SL:* `{sl_p}` *(ATR Protected)*\n💰 *TP:* `{tp_p}` *(Structural Target)*\n\n💡 *Logic:* Demand tervalidasi Engulfing M5.\n🎓 *Risk/Reward:* 1 : {round(rr_ratio, 1)}. Target diletakkan logis di Resistance terdekat, bukan sekadar baku 1:3."
+                    msg = f"🎯 *[FASE 2: KONFIRMASI EKSEKUSI]*\n\n📊 *Instrumen:* {pair_name}\n⚡ *Aksi:* POTENSI BUY\n📍 *Entry:* `{entry_p}` *(+Spread)*\n🛑 *SL:* `{sl_p}` *(ATR Protected)*\n💰 *TP:* `{tp_p}` *(Structural Target)*\n\n🧠 *Edukasi Market:* {edu_text}\n\n🎓 *Risk/Reward:* 1 : {round(rr_ratio, 1)}. Target diletakkan logis di Resistance terdekat. Tetap gunakan manajemen risiko 1%!"
                     send_alert(msg)
 
         elif trend == "DOWNTREND" and is_bearish_engulfing:
             entry_p = float(curr_m5['Close'])
             sl_p = float(curr_m5['High']) + atr_value + spread_allowance
             risk = abs(sl_p - entry_p)
-            
-            # Dynamic TP di Support Mayor
             reward = entry_p - major_sup
+            
             if risk > 0 and reward > 0:
                 rr_ratio = reward / risk
-                if rr_ratio >= 1.5: # Syarat Minimal Kelayakan RR
+                if rr_ratio >= 1.5:
                     entry_p, sl_p, tp_p = round(entry_p, dec), round(sl_p, dec), round(major_sup, dec)
+                    edu_text = random.choice(edukasi_sell)
 
                     current_state["active_signals"].append({
-                        "strategy": "Core: OB+Engulfing", "pair": pair_name, "type": "SELL MARKET",
+                        "strategy": "Core: OB+Engulfing", "pair": pair_name, "type": "POTENSI SELL",
                         "entry": entry_p, "sl": sl_p, "tp": tp_p, "rr": f"1 : {round(rr_ratio, 1)}", "status": "OPEN"
                     })
                     current_state["radar_locks"][pair_lock] = "ACTIVE"
                     
-                    msg = f"🎯 *[EKSEKUSI: CORE INSTITUTIONAL]*\n\n📊 *Instrumen:* {pair_name}\n⚡ *Aksi:* SELL SEKARANG (Market)\n📍 *Entry:* `{entry_p}`\n🛑 *SL:* `{sl_p}` *(ATR+Spread Protected)*\n💰 *TP:* `{tp_p}` *(Structural Target)*\n\n💡 *Logic:* Supply tervalidasi Engulfing M5.\n🎓 *Risk/Reward:* 1 : {round(rr_ratio, 1)}. Target diletakkan logis di Support terdekat, bukan sekadar baku 1:3."
+                    msg = f"🎯 *[FASE 2: KONFIRMASI EKSEKUSI]*\n\n📊 *Instrumen:* {pair_name}\n⚡ *Aksi:* POTENSI SELL\n📍 *Entry:* `{entry_p}`\n🛑 *SL:* `{sl_p}` *(ATR+Spread Protected)*\n💰 *TP:* `{tp_p}` *(Structural Target)*\n\n🧠 *Edukasi Market:* {edu_text}\n\n🎓 *Risk/Reward:* 1 : {round(rr_ratio, 1)}. Target diletakkan logis di Support terdekat. Tetap gunakan manajemen risiko 1%!"
                     send_alert(msg)
 
         return current_state
