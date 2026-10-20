@@ -35,7 +35,6 @@ def save_state(state_data):
 
 def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
     try:
-        # Mengambil data 5 hari dengan interval 15 menit
         df = yf.download(ticker_symbol, period="5d", interval="15m", progress=False)
         if df.empty or len(df) < 100:
             return current_state
@@ -43,14 +42,11 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
 
-        # Mencari area Likuiditas Utama (Support & Resistance Struktural 3 hari terakhir)
-        lookback_period = -100 # Sekitar 3 hari perdagangan
+        lookback_period = -100
         major_resistance = float(df['High'].iloc[lookback_period:-5].max())
         major_support = float(df['Low'].iloc[lookback_period:-5].min())
 
         last_candle = df.iloc[-1]
-        prev_candle = df.iloc[-2]
-        
         close_price = float(last_candle['Close'])
         high_price = float(last_candle['High'])
         low_price = float(last_candle['Low'])
@@ -60,20 +56,18 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
         multiplier = 10.0 if is_gold else 10000.0
         decimals = 2 if is_gold else 5
         
-        # Jarak radar (Peringatan dini sekitar 30 pips sebelum zona likuiditas)
         radar_distance = 3.0 if is_gold else 0.0030 
 
         pair_key = ticker_symbol
         radar_status = current_state.get("radar", {}).get(pair_key, "NEUTRAL")
 
         # ==========================================
-        # FASE 1: RADAR PANTAUAN (EARLY WARNING)
+        # PANTAUAN RADAR (EARLY WARNING)
         # ==========================================
         
-        # Deteksi harga mendekati Resistance (Potensi SELL)
         if radar_status == "NEUTRAL" and (major_resistance - close_price) <= radar_distance and close_price < major_resistance:
             pesan_radar = (
-                f"⚠️ *[FASE 1: RADAR INSTITUSIONAL]*\n\n"
+                f"⚠️ *[RADAR INSTITUSIONAL]*\n\n"
                 f"🔍 *Instrumen:* {pair_name}\n"
                 f"📈 *Status:* Mendekati Zona Likuiditas Atas (Resistance: `{round(major_resistance, decimals)}`).\n\n"
                 f"⏳ *Tindakan:* Jangan eksekusi apapun. Pantau chart Anda. Kita menunggu manipulasi harga (Stop Hunt) di area ini sebelum konfirmasi SELL."
@@ -82,10 +76,9 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
             current_state["radar"][pair_key] = "WATCHING_RESISTANCE"
             return current_state
 
-        # Deteksi harga mendekati Support (Potensi BUY)
         elif radar_status == "NEUTRAL" and (close_price - major_support) <= radar_distance and close_price > major_support:
             pesan_radar = (
-                f"⚠️ *[FASE 1: RADAR INSTITUSIONAL]*\n\n"
+                f"⚠️ *[RADAR INSTITUSIONAL]*\n\n"
                 f"🔍 *Instrumen:* {pair_name}\n"
                 f"📉 *Status:* Mendekati Zona Likuiditas Bawah (Support: `{round(major_support, decimals)}`).\n\n"
                 f"⏳ *Tindakan:* Jangan eksekusi apapun. Pantau chart Anda. Kita menunggu manipulasi harga (Stop Hunt) di area ini sebelum konfirmasi BUY."
@@ -95,17 +88,15 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
             return current_state
 
         # ==========================================
-        # FASE 2: KONFIRMASI EKSEKUSI (LIQUIDITY SWEEP)
+        # KONFIRMASI EKSEKUSI (LIQUIDITY SWEEP)
         # ==========================================
         
-        # Eksekusi SELL (Jika sebelumnya memantau Resistance)
         if radar_status == "WATCHING_RESISTANCE":
-            # Syarat: Harga sempat menyapu Resistance (High > Resistance) tapi ditutup kembali ke bawah (Close < Resistance) dengan body merah (Close < Open)
             if high_price > major_resistance and close_price < major_resistance and close_price < open_price:
                 entry_price = round(close_price, decimals)
-                sl_price = round(high_price + (1.5 if is_gold else 0.0015), decimals) # SL aman di atas sumbu manipulasi
+                sl_price = round(high_price + (1.5 if is_gold else 0.0015), decimals)
                 risk_dist = abs(sl_price - entry_price)
-                tp_price = round(entry_price - (risk_dist * 2.5), decimals) # Risk Reward 1:2.5
+                tp_price = round(entry_price - (risk_dist * 2.5), decimals)
 
                 setup = {
                     "pair": pair_name,
@@ -116,13 +107,13 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
                     "risk_pips": round(risk_dist * multiplier, 1),
                     "reward_pips": round(abs(entry_price - tp_price) * multiplier, 1),
                     "rr": "1 : 2.5",
-                    "reason": f"Konfirmasi Liquidity Sweep (Manipulasi Institusi). Harga menembus likuiditas atas di {round(major_resistance, decimals)} namun ditolak kuat ke bawah."
+                    "reason": f"Konfirmasi Liquidity Sweep. Harga memakan likuiditas atas di {round(major_resistance, decimals)} namun ditolak kuat ke bawah."
                 }
                 current_state["active_signal"] = setup
-                current_state["radar"][pair_key] = "NEUTRAL" # Reset radar
+                current_state["radar"][pair_key] = "NEUTRAL"
                 
                 pesan_eksekusi = (
-                    f"🎯 *[FASE 2: VALID EXECUTION]*\n\n"
+                    f"🎯 *[VALID EXECUTION]*\n\n"
                     f"📊 *Instrumen:* {setup['pair']}\n"
                     f"⚡ *Aksi:* VALID {setup['type']}\n"
                     f"📍 *Level Entry:* `{setup['entry']}`\n"
@@ -133,12 +124,10 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
                 send_alert(pesan_eksekusi)
                 return current_state
 
-        # Eksekusi BUY (Jika sebelumnya memantau Support)
         elif radar_status == "WATCHING_SUPPORT":
-            # Syarat: Harga sempat menyapu Support (Low < Support) tapi ditutup kembali ke atas (Close > Support) dengan body hijau (Close > Open)
             if low_price < major_support and close_price > major_support and close_price > open_price:
                 entry_price = round(close_price, decimals)
-                sl_price = round(low_price - (1.5 if is_gold else 0.0015), decimals) # SL aman di bawah sumbu manipulasi
+                sl_price = round(low_price - (1.5 if is_gold else 0.0015), decimals)
                 risk_dist = abs(entry_price - sl_price)
                 tp_price = round(entry_price + (risk_dist * 2.5), decimals)
 
@@ -151,13 +140,13 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
                     "risk_pips": round(risk_dist * multiplier, 1),
                     "reward_pips": round(abs(tp_price - entry_price) * multiplier, 1),
                     "rr": "1 : 2.5",
-                    "reason": f"Konfirmasi Liquidity Sweep (Manipulasi Institusi). Harga memakan SL retail di bawah {round(major_support, decimals)} dan ditolak kuat kembali ke atas."
+                    "reason": f"Konfirmasi Liquidity Sweep. Harga memakan SL ritel di bawah {round(major_support, decimals)} dan ditolak kuat kembali ke atas."
                 }
                 current_state["active_signal"] = setup
-                current_state["radar"][pair_key] = "NEUTRAL" # Reset radar
+                current_state["radar"][pair_key] = "NEUTRAL"
                 
                 pesan_eksekusi = (
-                    f"🎯 *[FASE 2: VALID EXECUTION]*\n\n"
+                    f"🎯 *[VALID EXECUTION]*\n\n"
                     f"📊 *Instrumen:* {setup['pair']}\n"
                     f"⚡ *Aksi:* VALID {setup['type']}\n"
                     f"📍 *Level Entry:* `{setup['entry']}`\n"
@@ -168,7 +157,6 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
                 send_alert(pesan_eksekusi)
                 return current_state
 
-        # Reset radar jika harga menjauh tanpa terjadi sweep
         if radar_status == "WATCHING_RESISTANCE" and (major_resistance - close_price) > (radar_distance * 2):
             current_state["radar"][pair_key] = "NEUTRAL"
         elif radar_status == "WATCHING_SUPPORT" and (close_price - major_support) > (radar_distance * 2):
@@ -182,16 +170,13 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
 
 def run_market_scan():
     current_state = load_state()
-    
     instruments = [
         {"name": "XAU/USD (Gold)", "ticker": "GC=F"},
         {"name": "EUR/USD", "ticker": "EURUSD=X"},
         {"name": "GBP/USD", "ticker": "GBPUSD=X"}
     ]
-
     for item in instruments:
         current_state = calculate_liquidity_setup(item["ticker"], item["name"], current_state)
-        
     save_state(current_state)
 
 if __name__ == "__main__":
