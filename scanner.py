@@ -78,9 +78,9 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
                     pesan_batal = (
                         f"🚫 *[EMERGENCY CANCEL: PROTEKSI MODAL]*\n\n"
                         f"📊 *Instrumen:* {pair_name}\n"
-                        f"⚠️ *Sinyal Dibatalkan:* {sig_type} pada `{entry_p}`\n\n"
+                        f"⚠️ *Rekomendasi Dibatalkan:* {sig_type} pada `{entry_p}`\n\n"
                         f"❌ *Alasan:* Arus pesanan (Order Flow) berbalik secara drastis. Struktur harga yang kita harapkan telah patah oleh volume yang berlawanan.\n\n"
-                        f"🎓 *Edukasi Psikologi:* Menelan kerugian kecil (Cut Loss dini) jauh lebih baik daripada bersikap keras kepala dan berharap harga turun kembali. Trader profesional tidak dinilai dari seberapa sering mereka menang, tapi dari kedisiplinan mereka memotong kerugian saat skenario terbukti salah.\n\n"
+                        f"🎓 *Edukasi Psikologi:* Menelan kerugian kecil (Cut Loss dini) jauh lebih baik daripada bersikap keras kepala dan berharap harga turun kembali. Trader profesional tidak dinilai dari seberapa sering mereka menang, tapi dari kedisiplinan mereka memotong kerugian saat probabilitas sudah tidak berpihak.\n\n"
                         f"⚡ *Tindakan:* Segera TUTUP POSISI Anda secara manual sekarang juga!"
                     )
                     send_alert(pesan_batal)
@@ -96,9 +96,9 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
                     pesan_batal = (
                         f"🚫 *[EMERGENCY CANCEL: PROTEKSI MODAL]*\n\n"
                         f"📊 *Instrumen:* {pair_name}\n"
-                        f"⚠️ *Sinyal Dibatalkan:* {sig_type} pada `{entry_p}`\n\n"
+                        f"⚠️ *Rekomendasi Dibatalkan:* {sig_type} pada `{entry_p}`\n\n"
                         f"❌ *Alasan:* Arus pesanan (Order Flow) berbalik secara drastis. Struktur harga yang kita harapkan telah patah oleh tekanan jual yang besar.\n\n"
-                        f"🎓 *Edukasi Psikologi:* Menelan kerugian kecil (Cut Loss dini) jauh lebih baik daripada bersikap keras kepala dan berharap harga naik kembali. Trader profesional tidak dinilai dari seberapa sering mereka menang, tapi dari kedisiplinan mereka memotong kerugian saat skenario terbukti salah.\n\n"
+                        f"🎓 *Edukasi Psikologi:* Menelan kerugian kecil (Cut Loss dini) jauh lebih baik daripada bersikap keras kepala dan berharap harga naik kembali. Trader profesional tidak dinilai dari seberapa sering mereka menang, tapi dari kedisiplinan mereka memotong kerugian saat probabilitas sudah tidak berpihak.\n\n"
                         f"⚡ *Tindakan:* Segera TUTUP POSISI Anda secara manual sekarang juga!"
                     )
                     send_alert(pesan_batal)
@@ -170,7 +170,7 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
             return current_state
 
         # ==========================================
-        # FASE 2: EKSEKUSI (VALIDASI)
+        # FASE 2: EKSEKUSI (REKOMENDASI)
         # ==========================================
         if radar_status == "WATCHING_RESISTANCE":
             if high_price > major_resistance and close_price < major_resistance and close_price < open_price:
@@ -186,13 +186,12 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
                     current_state["radar"][pair_key] = "NEUTRAL"
                     return current_state 
 
-                web_reason = f"Bearish Liquidity Sweep terkonfirmasi di Resistance ({round(major_resistance, decimals)}). Rejeksi volume tinggi tervalidasi. Setup SELL aktif."
+                web_reason = f"Bearish Liquidity Sweep terkonfirmasi di Resistance ({round(major_resistance, decimals)}). Peluang probabilitas tinggi untuk SELL."
                 
-                # --- VARIASI EDUKASI EKSEKUSI SELL ---
                 telegram_sell_vars = [
                     "Jebakan bandar terkonfirmasi! Harga sengaja didorong naik menembus area Resistance untuk memancing optimisme trader awam (FOMO). Begitu likuiditas terkumpul, harga langsung ditolak kuat dan dibanting turun. Ini jejak institusi besar (Liquidity Sweep).",
-                    "Rejeksi institusional tervalidasi! Pola penembusan palsu (fakeout) di atas Resistance menunjukkan bahwa 'Smart Money' hanya menyapu Stop Loss ritel sebelum mendistribusikan pesanan jual masif mereka. Ikuti arus turun ini.",
-                    "Momentum palsu berhasil diidentifikasi. Institusi membiarkan harga naik sesaat, memicu harapan breakout, lalu membantingnya dengan volume besar di timeframe ini. Setup institusional SELL kini sangat jelas."
+                    "Rejeksi institusional tervalidasi! Pola penembusan palsu (fakeout) di atas Resistance menunjukkan bahwa 'Smart Money' hanya menyapu Stop Loss ritel sebelum mendistribusikan pesanan jual masif mereka. Ada potensi probabilitas tinggi untuk ikut arus turun ini.",
+                    "Momentum palsu berhasil diidentifikasi. Institusi membiarkan harga naik sesaat, memicu harapan breakout, lalu membantingnya dengan volume besar di timeframe ini. Setup institusional SELL kini terlihat sangat menjanjikan."
                 ]
                 telegram_reason = random.choice(telegram_sell_vars)
 
@@ -212,14 +211,14 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
                 current_state["radar"][pair_key] = "NEUTRAL"
                 
                 pesan_eksekusi = (
-                    f"🎯 *[VALID EXECUTION: IKUTI ARUS INSTITUSI]*\n\n"
+                    f"🎯 *[REKOMENDASI EKSEKUSI: IKUTI ARUS INSTITUSI]*\n\n"
                     f"📊 *Instrumen:* {setup['pair']}\n"
-                    f"⚡ *Aksi:* VALID {setup['type']}\n"
+                    f"⚡ *Peluang Aksi:* POTENSI {setup['type']}\n"
                     f"📍 *Level Entry:* `{setup['entry']}`\n"
                     f"🛑 *Stop Loss (SL):* `{setup['sl']}` ({setup['risk_pips']} Pips)\n"
                     f"💰 *Take Profit (TP):* `{setup['tp']}` ({setup['reward_pips']} Pips)\n\n"
                     f"💡 *Smart Money Logic:* {telegram_reason}\n\n"
-                    f"🎓 *Edukasi Risiko:* Rasio keuntungan terhadap risiko kita adalah {setup['rr']}. Jangan tergiur lot besar. Gunakan Kalkulator Web kami untuk memastikan risiko Anda maksimal hanya 1% dari total modal."
+                    f"🎓 *Edukasi Risiko:* Tidak ada strategi yang 100% pasti. Rasio keuntungan terhadap risiko kita adalah {setup['rr']}. Selalu gunakan Kalkulator Web kami untuk memastikan risiko Anda maksimal hanya 1% dari total modal."
                 )
                 send_alert(pesan_eksekusi)
                 return current_state
@@ -238,13 +237,12 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
                     current_state["radar"][pair_key] = "NEUTRAL"
                     return current_state 
 
-                web_reason = f"Bullish Liquidity Sweep terkonfirmasi di Support ({round(major_support, decimals)}). Rejeksi volume tinggi tervalidasi. Setup BUY aktif."
+                web_reason = f"Bullish Liquidity Sweep terkonfirmasi di Support ({round(major_support, decimals)}). Peluang probabilitas tinggi untuk BUY."
                 
-                # --- VARIASI EDUKASI EKSEKUSI BUY ---
                 telegram_buy_vars = [
                     "Jebakan bandar terkonfirmasi! Harga sengaja didorong turun menembus area Support untuk memancing kepanikan (panic selling) dari trader awam. Begitu likuiditas terkumpul, harga langsung ditolak kuat dan ditarik naik. Ini jejak institusi besar.",
-                    "Rejeksi institusional tervalidasi! Pola penembusan palsu (fakeout) di bawah Support menunjukkan bahwa 'Smart Money' hanya menyapu Stop Loss ritel sebelum mengakumulasi pesanan beli masif mereka. Ikuti arus naik ini.",
-                    "Kepanikan palsu berhasil diidentifikasi. Institusi membiarkan harga turun tajam sesaat untuk menciptakan ilusi downtrend, lalu memborongnya dengan volume besar. Setup institusional BUY kini sangat jelas."
+                    "Rejeksi institusional tervalidasi! Pola penembusan palsu (fakeout) di bawah Support menunjukkan bahwa 'Smart Money' hanya menyapu Stop Loss ritel sebelum mengakumulasi pesanan beli masif mereka. Ada potensi probabilitas tinggi untuk ikut arus naik ini.",
+                    "Kepanikan palsu berhasil diidentifikasi. Institusi membiarkan harga turun tajam sesaat untuk menciptakan ilusi downtrend, lalu memborongnya dengan volume besar. Setup institusional BUY kini terlihat sangat menjanjikan."
                 ]
                 telegram_reason = random.choice(telegram_buy_vars)
 
@@ -264,14 +262,14 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
                 current_state["radar"][pair_key] = "NEUTRAL"
                 
                 pesan_eksekusi = (
-                    f"🎯 *[VALID EXECUTION: IKUTI ARUS INSTITUSI]*\n\n"
+                    f"🎯 *[REKOMENDASI EKSEKUSI: IKUTI ARUS INSTITUSI]*\n\n"
                     f"📊 *Instrumen:* {setup['pair']}\n"
-                    f"⚡ *Aksi:* VALID {setup['type']}\n"
+                    f"⚡ *Peluang Aksi:* POTENSI {setup['type']}\n"
                     f"📍 *Level Entry:* `{setup['entry']}`\n"
                     f"🛑 *Stop Loss (SL):* `{setup['sl']}` ({setup['risk_pips']} Pips)\n"
                     f"💰 *Take Profit (TP):* `{setup['tp']}` ({setup['reward_pips']} Pips)\n\n"
                     f"💡 *Smart Money Logic:* {telegram_reason}\n\n"
-                    f"🎓 *Edukasi Risiko:* Rasio keuntungan terhadap risiko kita adalah {setup['rr']}. Jangan tergiur lot besar. Gunakan Kalkulator Web kami untuk memastikan risiko Anda maksimal hanya 1% dari total modal."
+                    f"🎓 *Edukasi Risiko:* Tidak ada strategi yang 100% pasti. Rasio keuntungan terhadap risiko kita adalah {setup['rr']}. Selalu gunakan Kalkulator Web kami untuk memastikan risiko Anda maksimal hanya 1% dari total modal."
                 )
                 send_alert(pesan_eksekusi)
                 return current_state
