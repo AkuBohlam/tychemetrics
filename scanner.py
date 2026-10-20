@@ -59,7 +59,7 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
         pair_key = ticker_symbol
 
         # ==========================================
-        # FASE 3: PEMANTAUAN INVALIDASI (EARLY CUT)
+        # FASE 3: PEMBATALAN (EMERGENCY CANCEL)
         # ==========================================
         active_signal = current_state.get("active_signal")
         if active_signal and active_signal.get("pair") == pair_name:
@@ -69,56 +69,67 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
             tp_p = active_signal["tp"]
 
             if sig_type == "SELL":
-                # Jika sudah kena SL atau TP secara natural, reset memori
                 if high_price >= sl_p or low_price <= tp_p:
                     current_state["active_signal"] = None
                     return current_state
                 
-                # PEMBATALAN DINI: Harga malah ditutup naik menembus Resistance
                 if close_price > major_resistance and close_price > open_price:
                     pesan_batal = (
-                        f"🚫 *[EMERGENCY CANCEL / CUT EARLY]*\n\n"
+                        f"🚫 *[EMERGENCY CANCEL: PROTEKSI MODAL]*\n\n"
                         f"📊 *Instrumen:* {pair_name}\n"
-                        f"⚠️ *Sinyal Dibatalkan:* {sig_type} pada `{entry_p}`\n"
-                        f"❌ *Alasan:* Struktur harga berbalik mematahkan setup. Candle ditutup kembali di atas Resistance. Segera TUTUP POSISI MANUAL sekarang untuk meminimalisir kerugian sebelum terkena SL penuh."
+                        f"⚠️ *Sinyal Dibatalkan:* {sig_type} pada `{entry_p}`\n\n"
+                        f"❌ *Alasan:* Arus pesanan (Order Flow) berbalik secara drastis. Struktur harga yang kita harapkan telah patah oleh volume yang berlawanan.\n\n"
+                        f"🎓 *Edukasi Psikologi:* Menelan kerugian kecil (Cut Loss dini) jauh lebih baik daripada bersikap keras kepala dan berharap harga turun kembali. Trader profesional tidak dinilai dari seberapa sering mereka menang, tapi dari kedisiplinan mereka memotong kerugian saat skenario terbukti salah.\n\n"
+                        f"⚡ *Tindakan:* Segera TUTUP POSISI Anda secara manual sekarang juga!"
                     )
                     send_alert(pesan_batal)
                     current_state["active_signal"] = None
                     return current_state
 
             elif sig_type == "BUY":
-                # Jika sudah kena SL atau TP secara natural, reset memori
                 if low_price <= sl_p or high_price >= tp_p:
                     current_state["active_signal"] = None
                     return current_state
                 
-                # PEMBATALAN DINI: Harga malah ditutup turun menembus Support
                 if close_price < major_support and close_price < open_price:
                     pesan_batal = (
-                        f"🚫 *[EMERGENCY CANCEL / CUT EARLY]*\n\n"
+                        f"🚫 *[EMERGENCY CANCEL: PROTEKSI MODAL]*\n\n"
                         f"📊 *Instrumen:* {pair_name}\n"
-                        f"⚠️ *Sinyal Dibatalkan:* {sig_type} pada `{entry_p}`\n"
-                        f"❌ *Alasan:* Struktur harga berbalik mematahkan setup. Candle ditutup kembali di bawah Support. Segera TUTUP POSISI MANUAL sekarang untuk meminimalisir kerugian sebelum terkena SL penuh."
+                        f"⚠️ *Sinyal Dibatalkan:* {sig_type} pada `{entry_p}`\n\n"
+                        f"❌ *Alasan:* Arus pesanan (Order Flow) berbalik secara drastis. Struktur harga yang kita harapkan telah patah oleh tekanan jual yang besar.\n\n"
+                        f"🎓 *Edukasi Psikologi:* Menelan kerugian kecil (Cut Loss dini) jauh lebih baik daripada bersikap keras kepala dan berharap harga naik kembali. Trader profesional tidak dinilai dari seberapa sering mereka menang, tapi dari kedisiplinan mereka memotong kerugian saat skenario terbukti salah.\n\n"
+                        f"⚡ *Tindakan:* Segera TUTUP POSISI Anda secara manual sekarang juga!"
                     )
                     send_alert(pesan_batal)
                     current_state["active_signal"] = None
                     return current_state
             
-            # Jika sinyal masih aktif dan aman, hentikan eksekusi pencarian sinyal baru di pair ini
+            # PENGAWALAN (Ditampilkan 1 kali)
+            if not active_signal.get("escort_sent"):
+                pesan_kawal = (
+                    f"🛡️ *[PENGAMANAN POSISI AKTIF]*\n\n"
+                    f"📊 *Instrumen:* {pair_name}\n"
+                    f"⚡ *Status:* Posisi {sig_type} Anda sedang berjalan (Entry: `{entry_p}`).\n\n"
+                    f"🎓 *Edukasi Trading:* Dalam dunia trading institusional, masuk ke pasar (entry) baru setengah dari perjuangan. Setengahnya lagi adalah 'Manajemen Posisi Aktif'. Kondisi makro bisa berubah dalam hitungan menit.\n\n"
+                    f"👀 *Tindakan Anda:* Tetap awasi layar MT5/TradingView Anda. Jika algoritma kami mendeteksi anomali pergerakan harga, kami akan mengirim instruksi Pembatalan (Emergency Cut) untuk menyelamatkan sisa modal Anda."
+                )
+                send_alert(pesan_kawal)
+                current_state["active_signal"]["escort_sent"] = True
+            
             return current_state
 
-
         # ==========================================
-        # FASE 1: PANTAUAN RADAR (EARLY WARNING)
+        # FASE 1: RADAR (PERINGATAN DINI)
         # ==========================================
         radar_status = current_state.get("radar", {}).get(pair_key, "NEUTRAL")
         
         if radar_status == "NEUTRAL" and (major_resistance - close_price) <= radar_distance and close_price < major_resistance:
             pesan_radar = (
-                f"⚠️ *[RADAR INSTITUSIONAL]*\n\n"
+                f"⚠️ *[RADAR INSTITUSIONAL AKTIF]*\n\n"
                 f"🔍 *Instrumen:* {pair_name}\n"
-                f"📈 *Status:* Mendekati Zona Likuiditas Atas (Resistance: `{round(major_resistance, decimals)}`).\n\n"
-                f"⏳ *Tindakan:* Jangan eksekusi apapun. Pantau chart Anda. Kita menunggu manipulasi harga (Stop Hunt) di area ini sebelum konfirmasi SELL."
+                f"📈 *Area Pantauan:* Mendekati Zona Resistance (`{round(major_resistance, decimals)}`).\n\n"
+                f"🧠 *Edukasi Market:* Harga sedang memasuki 'zona rawan' tempat trader ritel biasanya meletakkan Stop Loss mereka. Institusi besar (bank/hedge fund) sangat menyukai area ini. Mereka akan sengaja memompa harga naik untuk memakan Stop Loss tersebut (mengumpulkan likuiditas) sebelum membantingnya turun.\n\n"
+                f"⏳ *Tindakan Anda:* TAHAN DIRI. Jangan bereaksi dulu. Kita sedang menunggu konfirmasi apakah terjadi jebakan (Stop Hunt) atau malah Breakout murni. Bersiaplah di depan chart."
             )
             send_alert(pesan_radar)
             current_state["radar"][pair_key] = "WATCHING_RESISTANCE"
@@ -126,18 +137,18 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
 
         elif radar_status == "NEUTRAL" and (close_price - major_support) <= radar_distance and close_price > major_support:
             pesan_radar = (
-                f"⚠️ *[RADAR INSTITUSIONAL]*\n\n"
+                f"⚠️ *[RADAR INSTITUSIONAL AKTIF]*\n\n"
                 f"🔍 *Instrumen:* {pair_name}\n"
-                f"📉 *Status:* Mendekati Zona Likuiditas Bawah (Support: `{round(major_support, decimals)}`).\n\n"
-                f"⏳ *Tindakan:* Jangan eksekusi apapun. Pantau chart Anda. Kita menunggu manipulasi harga (Stop Hunt) di area ini sebelum konfirmasi BUY."
+                f"📉 *Area Pantauan:* Mendekati Zona Support (`{round(major_support, decimals)}`).\n\n"
+                f"🧠 *Edukasi Market:* Harga sedang memasuki 'zona rawan' tempat trader ritel biasanya meletakkan Stop Loss mereka. Institusi besar (bank/hedge fund) sangat menyukai area ini. Mereka akan sengaja menekan harga turun untuk memakan Stop Loss tersebut (mengumpulkan likuiditas) sebelum menariknya naik dengan kuat.\n\n"
+                f"⏳ *Tindakan Anda:* TAHAN DIRI. Jangan bereaksi dulu. Kita sedang menunggu konfirmasi apakah terjadi jebakan (Stop Hunt) atau malah Breakdown murni. Bersiaplah di depan chart."
             )
             send_alert(pesan_radar)
             current_state["radar"][pair_key] = "WATCHING_SUPPORT"
             return current_state
 
-
         # ==========================================
-        # FASE 2: KONFIRMASI EKSEKUSI
+        # FASE 2: EKSEKUSI (VALIDASI)
         # ==========================================
         if radar_status == "WATCHING_RESISTANCE":
             if high_price > major_resistance and close_price < major_resistance and close_price < open_price:
@@ -162,20 +173,20 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
                     "risk_pips": round(risk_dist * multiplier, 1),
                     "reward_pips": round(reward_dist * multiplier, 1),
                     "rr": f"1 : {round(actual_rr, 1)}",
-                    "reason": f"Liquidity Sweep di ekor Resistance ({round(major_resistance, decimals)}). Target Take Profit dinamis di area Support terdekat."
+                    "escort_sent": False
                 }
                 current_state["active_signal"] = setup
                 current_state["radar"][pair_key] = "NEUTRAL"
                 
                 pesan_eksekusi = (
-                    f"🎯 *[VALID EXECUTION]*\n\n"
+                    f"🎯 *[VALID EXECUTION: IKUTI ARUS INSTITUSI]*\n\n"
                     f"📊 *Instrumen:* {setup['pair']}\n"
                     f"⚡ *Aksi:* VALID {setup['type']}\n"
                     f"📍 *Level Entry:* `{setup['entry']}`\n"
                     f"🛑 *Stop Loss (SL):* `{setup['sl']}` ({setup['risk_pips']} Pips)\n"
-                    f"💰 *Take Profit (TP):* `{setup['tp']}` ({setup['reward_pips']} Pips)\n"
-                    f"⚖️ *Risk to Reward:* {setup['rr']}\n\n"
-                    f"💡 *Logika:* {setup['reason']}"
+                    f"💰 *Take Profit (TP):* `{setup['tp']}` ({setup['reward_pips']} Pips)\n\n"
+                    f"💡 *Smart Money Logic:* Jebakan bandar terkonfirmasi! Harga sengaja didorong naik menembus area Resistance untuk memancing optimisme dari trader awam. Begitu likuiditas terkumpul, harga langsung ditolak kuat dan dibanting turun. Ini bukti jejak institusi besar (Liquidity Sweep).\n\n"
+                    f"🎓 *Edukasi Risiko:* Rasio keuntungan terhadap risiko kita adalah {setup['rr']}. Jangan tergiur lot besar. Gunakan Kalkulator Web kami untuk memastikan risiko Anda maksimal hanya 1% dari total modal."
                 )
                 send_alert(pesan_eksekusi)
                 return current_state
@@ -203,20 +214,20 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
                     "risk_pips": round(risk_dist * multiplier, 1),
                     "reward_pips": round(reward_dist * multiplier, 1),
                     "rr": f"1 : {round(actual_rr, 1)}",
-                    "reason": f"Liquidity Sweep di ekor Support ({round(major_support, decimals)}). Target Take Profit dinamis di area Resistance terdekat."
+                    "escort_sent": False
                 }
                 current_state["active_signal"] = setup
                 current_state["radar"][pair_key] = "NEUTRAL"
                 
                 pesan_eksekusi = (
-                    f"🎯 *[VALID EXECUTION]*\n\n"
+                    f"🎯 *[VALID EXECUTION: IKUTI ARUS INSTITUSI]*\n\n"
                     f"📊 *Instrumen:* {setup['pair']}\n"
                     f"⚡ *Aksi:* VALID {setup['type']}\n"
                     f"📍 *Level Entry:* `{setup['entry']}`\n"
                     f"🛑 *Stop Loss (SL):* `{setup['sl']}` ({setup['risk_pips']} Pips)\n"
-                    f"💰 *Take Profit (TP):* `{setup['tp']}` ({setup['reward_pips']} Pips)\n"
-                    f"⚖️ *Risk to Reward:* {setup['rr']}\n\n"
-                    f"💡 *Logika:* {setup['reason']}"
+                    f"💰 *Take Profit (TP):* `{setup['tp']}` ({setup['reward_pips']} Pips)\n\n"
+                    f"💡 *Smart Money Logic:* Jebakan bandar terkonfirmasi! Harga sengaja didorong turun menembus area Support untuk memancing kepanikan (panic selling) dari trader awam. Begitu likuiditas terkumpul, harga langsung ditolak kuat dan ditarik naik. Ini bukti jejak institusi besar (Liquidity Sweep).\n\n"
+                    f"🎓 *Edukasi Risiko:* Rasio keuntungan terhadap risiko kita adalah {setup['rr']}. Jangan tergiur lot besar. Gunakan Kalkulator Web kami untuk memastikan risiko Anda maksimal hanya 1% dari total modal."
                 )
                 send_alert(pesan_eksekusi)
                 return current_state
