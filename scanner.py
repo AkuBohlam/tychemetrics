@@ -42,7 +42,6 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
 
-        # Mencari area Support dan Resistance mayor
         lookback_period = -100
         major_resistance = float(df['High'].iloc[lookback_period:-5].max())
         major_support = float(df['Low'].iloc[lookback_period:-5].min())
@@ -56,14 +55,63 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
         is_gold = "GC=F" in ticker_symbol
         multiplier = 10.0 if is_gold else 10000.0
         decimals = 2 if is_gold else 5
-        
         radar_distance = 3.0 if is_gold else 0.0030 
         pair_key = ticker_symbol
-        radar_status = current_state.get("radar", {}).get(pair_key, "NEUTRAL")
 
         # ==========================================
-        # PANTAUAN RADAR (EARLY WARNING)
+        # FASE 3: PEMANTAUAN INVALIDASI (EARLY CUT)
         # ==========================================
+        active_signal = current_state.get("active_signal")
+        if active_signal and active_signal.get("pair") == pair_name:
+            sig_type = active_signal["type"]
+            entry_p = active_signal["entry"]
+            sl_p = active_signal["sl"]
+            tp_p = active_signal["tp"]
+
+            if sig_type == "SELL":
+                # Jika sudah kena SL atau TP secara natural, reset memori
+                if high_price >= sl_p or low_price <= tp_p:
+                    current_state["active_signal"] = None
+                    return current_state
+                
+                # PEMBATALAN DINI: Harga malah ditutup naik menembus Resistance
+                if close_price > major_resistance and close_price > open_price:
+                    pesan_batal = (
+                        f"🚫 *[EMERGENCY CANCEL / CUT EARLY]*\n\n"
+                        f"📊 *Instrumen:* {pair_name}\n"
+                        f"⚠️ *Sinyal Dibatalkan:* {sig_type} pada `{entry_p}`\n"
+                        f"❌ *Alasan:* Struktur harga berbalik mematahkan setup. Candle ditutup kembali di atas Resistance. Segera TUTUP POSISI MANUAL sekarang untuk meminimalisir kerugian sebelum terkena SL penuh."
+                    )
+                    send_alert(pesan_batal)
+                    current_state["active_signal"] = None
+                    return current_state
+
+            elif sig_type == "BUY":
+                # Jika sudah kena SL atau TP secara natural, reset memori
+                if low_price <= sl_p or high_price >= tp_p:
+                    current_state["active_signal"] = None
+                    return current_state
+                
+                # PEMBATALAN DINI: Harga malah ditutup turun menembus Support
+                if close_price < major_support and close_price < open_price:
+                    pesan_batal = (
+                        f"🚫 *[EMERGENCY CANCEL / CUT EARLY]*\n\n"
+                        f"📊 *Instrumen:* {pair_name}\n"
+                        f"⚠️ *Sinyal Dibatalkan:* {sig_type} pada `{entry_p}`\n"
+                        f"❌ *Alasan:* Struktur harga berbalik mematahkan setup. Candle ditutup kembali di bawah Support. Segera TUTUP POSISI MANUAL sekarang untuk meminimalisir kerugian sebelum terkena SL penuh."
+                    )
+                    send_alert(pesan_batal)
+                    current_state["active_signal"] = None
+                    return current_state
+            
+            # Jika sinyal masih aktif dan aman, hentikan eksekusi pencarian sinyal baru di pair ini
+            return current_state
+
+
+        # ==========================================
+        # FASE 1: PANTAUAN RADAR (EARLY WARNING)
+        # ==========================================
+        radar_status = current_state.get("radar", {}).get(pair_key, "NEUTRAL")
         
         if radar_status == "NEUTRAL" and (major_resistance - close_price) <= radar_distance and close_price < major_resistance:
             pesan_radar = (
@@ -87,25 +135,23 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
             current_state["radar"][pair_key] = "WATCHING_SUPPORT"
             return current_state
 
+
         # ==========================================
-        # KONFIRMASI EKSEKUSI (DYNAMIC TP & RR MINIMAL)
+        # FASE 2: KONFIRMASI EKSEKUSI
         # ==========================================
-        
         if radar_status == "WATCHING_RESISTANCE":
             if high_price > major_resistance and close_price < major_resistance and close_price < open_price:
                 entry_price = round(close_price, decimals)
                 sl_price = round(high_price + (1.5 if is_gold else 0.0015), decimals)
                 risk_dist = abs(sl_price - entry_price)
                 
-                # DYNAMIC TP: Target di Support mayor dikurangi sedikit jarak aman
                 tp_price = round(major_support + (1.0 if is_gold else 0.0010), decimals)
                 reward_dist = abs(entry_price - tp_price)
                 
-                # Filter Perlindungan Modal: Jangan eksekusi jika RR < 1:2
                 actual_rr = reward_dist / risk_dist if risk_dist > 0 else 0
                 if actual_rr < 2.0:
                     current_state["radar"][pair_key] = "NEUTRAL"
-                    return current_state # Batal kirim sinyal karena rasio buram
+                    return current_state 
 
                 setup = {
                     "pair": pair_name,
@@ -140,15 +186,13 @@ def calculate_liquidity_setup(ticker_symbol, pair_name, current_state):
                 sl_price = round(low_price - (1.5 if is_gold else 0.0015), decimals)
                 risk_dist = abs(entry_price - sl_price)
                 
-                # DYNAMIC TP: Target di Resistance mayor dikurangi sedikit jarak aman
                 tp_price = round(major_resistance - (1.0 if is_gold else 0.0010), decimals)
                 reward_dist = abs(tp_price - entry_price)
                 
-                # Filter Perlindungan Modal: Jangan eksekusi jika RR < 1:2
                 actual_rr = reward_dist / risk_dist if risk_dist > 0 else 0
                 if actual_rr < 2.0:
                     current_state["radar"][pair_key] = "NEUTRAL"
-                    return current_state # Batal kirim sinyal karena rasio buruk
+                    return current_state 
 
                 setup = {
                     "pair": pair_name,
