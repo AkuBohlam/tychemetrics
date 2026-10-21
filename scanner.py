@@ -14,7 +14,6 @@ TWELVE_API_KEY = os.getenv("TWELVEDATA_API_KEY")
 STATE_FILE = "signals.json"
 
 INSTRUMENTS = [
-    {"name": "XAU (Gold)", "ticker": "XAU/USD"}, 
     {"name": "EUR/USD", "ticker": "EUR/USD"},
     {"name": "GBP/USD", "ticker": "GBP/USD"}
 ]
@@ -113,7 +112,7 @@ def fetch_twelve_data(symbol, interval, outputsize=200):
 # ==========================================
 def core_institutional_engine(ticker, pair_name, current_state):
     pair_lock = f"CORE_{ticker}"
-    dec = 2 if "XAU" in ticker else 5
+    dec = 5
     
     if current_state["radar_locks"].get(pair_lock) == "ACTIVE": return current_state
 
@@ -133,7 +132,7 @@ def core_institutional_engine(ticker, pair_name, current_state):
     major_res = df_h1['High'].iloc[-lookback:-2].max()
     major_sup = df_h1['Low'].iloc[-lookback:-2].min()
 
-    buffer = 5.0 if "XAU" in ticker else 0.0020
+    buffer = 0.0020
     ob_bot = major_sup if trend == "UPTREND" else (major_res - buffer)
     ob_top = (major_sup + buffer) if trend == "UPTREND" else major_res
 
@@ -208,7 +207,7 @@ def core_institutional_engine(ticker, pair_name, current_state):
 # ==========================================
 def run_scalp_engine(ticker, pair_name, current_state):
     pair_lock = f"SCALP_{ticker}"
-    dec = 2 if "XAU" in ticker else 5
+    dec = 5
     
     if current_state["radar_locks"].get(pair_lock) == "ACTIVE": return current_state
 
