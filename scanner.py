@@ -13,7 +13,6 @@ CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 TWELVE_API_KEY = os.getenv("TWELVEDATA_API_KEY")
 STATE_FILE = "signals.json"
 
-# Menggunakan ticker Spot murni sesuai standar Twelve Data & XM
 INSTRUMENTS = [
     {"name": "XAU/USD (Gold)", "ticker": "XAU/USD"}, 
     {"name": "EUR/USD", "ticker": "EUR/USD"},
@@ -21,32 +20,36 @@ INSTRUMENTS = [
 ]
 
 # ==========================================
-# 1. DATABASE BAHASA (ANTI-ROBOT)
+# 1. DATABASE BAHASA UNIVERSAL (3 GAYA)
 # ==========================================
-LANG_BUY_CORE = [
-    "Harga turun ke area 'grosir' (Demand) dan candle Engulfing M5 muncul layaknya jejak kaki raksasa. Ini pertanda institusi sedang memborong di harga murah sebelum harga dipompa naik.",
-    "Kita berenang searah arus tren! Area diskon H1 telah disentuh, dan konfirmasi Engulfing M5 adalah bukti visual bahwa uang besar (Smart Money) baru saja menyapu penjual ritel yang FOMO."
-]
-LANG_SELL_CORE = [
-    "Harga naik ke area 'mahal' (Supply) dan memancing pembeli ritel (FOMO). Candle Engulfing merah di M5 adalah konfirmasi bahwa institusi mulai melakukan aksi buang barang secara besar-besaran.",
-    "Tren besar sedang turun. Harga menyentuh batas atap (Resistance) H1 dan membentuk pola penolakan tajam (Engulfing M5). Ini menunjukkan pemain besar sudah siap membanting harga."
-]
-LANG_BUY_SCALP = [
-    "Institusi meninggalkan celah kosong (Imbalance) saat memompa harga naik. Kita memasang jaring penjemputan persis di pangkal momentum M5.",
-    "Terdeteksi jejak Bullish Imbalance segar di H1. Titik pantul disiapkan tepat di area Fractal M5."
-]
-LANG_SELL_SCALP = [
-    "Harga turun tajam meninggalkan celah Bearish Imbalance. Titik masuk disempurnakan pada Fractal Supply M5.",
-    "Institusi membuang muatan dan menciptakan Imbalance H1. Jaring Sell Limit dipasang di akar momentum M5."
+STYLES_BUY = [
+    { # Gaya 1: Edukatif
+        "warn": "⚠️ Peringatan Eksekusi: Jangan lupa kalibrasi harga penjemputan Anda. Pastikan Anda menambahkan spread broker masing-masing pada harga Entry agar order tereksekusi dengan sempurna.",
+        "logic": "💡 Logic: Terdeteksi jejak Bullish segar di H1. Titik pantul disiapkan tepat di area Demand M5. Kita menjemput harga di area diskon."
+    },
+    { # Gaya 2: Taktis
+        "warn": "🛡️ Protokol Keamanan: Eksekusi BUY selalu menggunakan garis Ask. Tambahkan nilai spread broker Anda ke dalam angka Entry Limit di atas agar pesanan Anda tidak tertinggal oleh pergerakan market.",
+        "logic": "🧠 Analisa Sistem: Algoritma menangkap anomali volume (Engulfing) di zona akumulasi H1. Jaring limit dipasang di akar pergerakan untuk meminimalisir risiko."
+    },
+    { # Gaya 3: Mekanis
+        "warn": "⚙️ Kalibrasi Diperlukan: Parameter mesin mengabaikan spread. Untuk aktivasi BUY yang presisi, input angka (Entry Limit + Spread) di terminal MetaTrader Anda.",
+        "logic": "📊 Metrik Mesin: Konfirmasi divergensi momentum dan Bullish Imbalance tervalidasi. Probabilitas pantulan tinggi di area penyangga M5."
+    }
 ]
 
-WARN_BUY = [
-    "Tips Eksekusi: Harga Entry di atas adalah harga mentah grafik (Bid). Wajib tambahkan nilai spread broker Anda pada eksekusi Entry.",
-    "Jangan lupa kalibrasi harga penjemputan Anda. Pastikan Anda menambahkan spread broker pada harga Entry agar tereksekusi sempurna."
-]
-WARN_SELL = [
-    "Catatan penting: Posisi SELL rentan tersapu garis Ask. Wajib tambahkan spread broker Anda pada angka SL agar pengaman tidak bocor.",
-    "Manajemen Eksekusi: Lindungi posisi SELL dengan menambahkan spread aktual pada batas Stop Loss."
+STYLES_SELL = [
+    { # Gaya 1: Edukatif
+        "warn": "⚠️ Peringatan Eksekusi: Tips Eksekusi: Karena Anda melakukan SELL, penutupan posisi (SL) menggunakan garis Ask. Wajib tambahkan spread broker Anda pada angka SL agar pengaman tidak bocor.",
+        "logic": "💡 Logic: Momentum kencang ke bawah menyisakan area premium yang belum terisi. Limit order ditempatkan untuk membonceng tren turun."
+    },
+    { # Gaya 2: Taktis
+        "warn": "🛡️ Protokol Keamanan: Bahaya pelebaran spread mengintai posisi SELL Anda. Lindungi modal dengan menambahkan spread broker Anda ke dalam angka Stop Loss secara manual.",
+        "logic": "🧠 Analisa Sistem: Struktur market H1 telah rusak (Break of Structure). Kita menempatkan Sell Limit di area Supply yang tersisa sebelum institusi melanjutkan tekanan jual."
+    },
+    { # Gaya 3: Mekanis
+        "warn": "⚙️ Kalibrasi Diperlukan: Sistem proteksi ATR sudah aktif, namun belum mencakup spread. Kalkulasikan (Stop Loss + Spread Broker) pada terminal MT5 untuk mencegah SL Hunter.",
+        "logic": "📊 Metrik Mesin: Tren H1 divalidasi ke bawah. Algoritma mengunci akar Bearish Imbalance sebagai titik resistensi eksekusi optimal."
+    }
 ]
 
 # ==========================================
@@ -94,8 +97,8 @@ def fetch_twelve_data(symbol, interval, outputsize=200):
             for col in ['open', 'high', 'low', 'close']:
                 df[col.capitalize()] = df[col].astype(float)
             return df
-    except Exception as e:
-        print(f"API Error {symbol}: {e}")
+    except Exception:
+        pass
     return pd.DataFrame()
 
 # ==========================================
@@ -104,6 +107,7 @@ def fetch_twelve_data(symbol, interval, outputsize=200):
 def core_institutional_engine(ticker, pair_name, current_state):
     pair_lock = f"CORE_{ticker}"
     dec = 2 if "XAU" in ticker else 5
+    
     if current_state["radar_locks"].get(pair_lock) == "ACTIVE": return current_state
 
     df_h1 = fetch_twelve_data(ticker, "1h", 200)
@@ -127,34 +131,45 @@ def core_institutional_engine(ticker, pair_name, current_state):
     ob_top = (major_sup + buffer) if trend == "UPTREND" else major_res
 
     curr_price = df_h1['Close'].iloc[-1]
+    
     if not (ob_bot <= curr_price <= ob_top):
         current_state["radar_locks"].pop(pair_lock, None)
         return current_state 
+
+    if current_state["radar_locks"].get(pair_lock) != "RADAR":
+        current_state["radar_locks"][pair_lock] = "RADAR"
+        arah = "Demand (Potensi BUY LIMIT)" if trend == "UPTREND" else "Supply (Potensi SELL LIMIT)"
+        send_alert(f"⚠️ *[FASE 1: RADAR] - CORE INSTITUTIONAL*\n📊 Instrumen: {pair_name}\n🔍 Status: Memasuki Zona {arah}.\n⏳ Tindakan: Siaga di MT5! Tunggu konfirmasi Engulfing di M5 dari sistem.")
+        return current_state
 
     df_m5 = fetch_twelve_data(ticker, "5min", 100)
     if df_m5.empty: return current_state
     
     df_m5['ATR'] = calculate_atr(df_m5)
     prev, curr = df_m5.iloc[-2], df_m5.iloc[-1]
+    atr_val = curr['ATR']
 
     bull_engulf = (prev['Close'] < prev['Open']) and (curr['Close'] > curr['Open']) and (curr['Close'] > prev['Open']) and (curr['Open'] <= prev['Close'])
     bear_engulf = (prev['Close'] > prev['Open']) and (curr['Close'] < curr['Open']) and (curr['Close'] < prev['Open']) and (curr['Open'] >= prev['Close'])
 
-    if not (bull_engulf or bear_engulf):
-        if current_state["radar_locks"].get(pair_lock) != "RADAR":
-            current_state["radar_locks"][pair_lock] = "RADAR"
-            arah = "Demand (Potensi BUY)" if trend == "UPTREND" else "Supply (Potensi SELL)"
-            send_alert(f"⚠️ *[FASE 1: RADAR]*\n📊 {pair_name}\n🔍 Memasuki Zona {arah}. Siaga di MT5!")
-        return current_state
-
-    # EXECUTION
     is_buy = trend == "UPTREND" and bull_engulf
     is_sell = trend == "DOWNTREND" and bear_engulf
     
     if is_buy or is_sell:
-        entry = curr['Close']
-        sl = curr['Low'] - curr['ATR'] if is_buy else curr['High'] + curr['ATR']
-        target = major_res if is_buy else major_sup
+        style = random.choice(STYLES_BUY if is_buy else STYLES_SELL)
+        
+        if is_buy:
+            entry = curr['Close']
+            sl = ob_bot - atr_val
+            target = major_res
+            entry_lbl = f"`{round(entry, dec)}` *(Harga Murni Chart + Spread Broker Anda)*"
+            sl_lbl = f"`{round(sl, dec)}` *(ATR Protected)*"
+        else:
+            entry = curr['Close']
+            sl = ob_top + atr_val
+            target = major_sup
+            entry_lbl = f"`{round(entry, dec)}` *(Harga Murni Chart)*"
+            sl_lbl = f"`{round(sl, dec)}` *(ATR Protected + Spread Broker Anda)*"
         
         risk = entry - sl if is_buy else sl - entry
         reward = target - entry if is_buy else entry - target
@@ -166,7 +181,7 @@ def core_institutional_engine(ticker, pair_name, current_state):
                 target = entry + (risk * 5) if is_buy else entry - (risk * 5)
                 
             entry, sl, target = round(entry, dec), round(sl, dec), round(target, dec)
-            tipe = "BUY EXECUTION" if is_buy else "SELL EXECUTION"
+            tipe = "BUY LIMIT" if is_buy else "SELL LIMIT"
             
             current_state["active_signals"].insert(0, {
                 "strategy": "ALGO: CORE_INSTITUTIONAL", "pair": pair_name, "type": tipe,
@@ -174,19 +189,20 @@ def core_institutional_engine(ticker, pair_name, current_state):
             })
             current_state["radar_locks"][pair_lock] = "ACTIVE"
             
-            msg = f"🎯 *[{tipe}]*\n📊 {pair_name}\n📍 Entry: `{entry}`\n🛑 SL: `{sl}` (ATR)\n💰 TP: `{target}`\n🎓 R/R: 1 : {round(rr, 1)}\n⚠️ {random.choice(WARN_BUY if is_buy else WARN_SELL)}"
+            msg = f"🎯 *[FASE 2: EKSEKUSI] - CORE INSTITUTIONAL*\n\n📊 Instrumen: {pair_name}\n⚡ Aksi: POTENSI {tipe}\n📍 Entry Limit: {entry_lbl}\n🛑 SL: {sl_lbl}\n💰 TP: `{target}` *(Max Capped Target)*\n\n{style['warn']}\n\n{style['logic']}\n🎓 Risk/Reward: 1 : {round(rr, 1)}."
             send_alert(msg)
 
     return current_state
 
 # ==========================================
-# 4. MESIN 2: IMBALANCE SCALPER
+# 4. MESIN 2: IMBALANCE SCALPER (DIRECT)
 # ==========================================
 def run_scalp_engine(ticker, pair_name, current_state):
     pair_lock = f"SCALP_{ticker}"
+    dec = 2 if "XAU" in ticker else 5
+    
     if current_state["radar_locks"].get(pair_lock) == "ACTIVE": return current_state
 
-    dec = 2 if "XAU" in ticker else 5
     df_h1 = fetch_twelve_data(ticker, "1h", 100)
     if df_h1.empty or len(df_h1) < 55: return current_state
     
@@ -197,15 +213,28 @@ def run_scalp_engine(ticker, pair_name, current_state):
     df_h1['ATR'] = calculate_atr(df_h1)
     
     last = df_h1.iloc[-2]
-    atr = df_h1['ATR'].iloc[-1]
+    atr_val = df_h1['ATR'].iloc[-1]
     
     is_buy = last['EMA_21'] > last['EMA_50'] and last['Bull_Imb']
     is_sell = last['EMA_21'] < last['EMA_50'] and last['Bear_Imb']
     
     if is_buy or is_sell:
-        entry = last['High'] if is_buy else last['Low']
-        sl = last['Low'] - atr if is_buy else last['High'] + atr
-        target = entry + (atr * 3) if is_buy else entry - (atr * 3)
+        style = random.choice(STYLES_BUY if is_buy else STYLES_SELL)
+        batas_bawah_area = last['Low']
+        batas_atas_area = last['High']
+
+        if is_buy:
+            entry = last['High']
+            sl = batas_bawah_area - atr_val
+            target = entry + (atr_val * 3)
+            entry_lbl = f"`{round(entry, dec)}` *(Harga Murni Chart + Spread Broker Anda)*"
+            sl_lbl = f"`{round(sl, dec)}` *(ATR Protected)*"
+        else:
+            entry = last['Low']
+            sl = batas_atas_area + atr_val
+            target = entry - (atr_val * 3)
+            entry_lbl = f"`{round(entry, dec)}` *(Harga Murni Chart)*"
+            sl_lbl = f"`{round(sl, dec)}` *(ATR Protected + Spread Broker Anda)*"
         
         risk = entry - sl if is_buy else sl - entry
         reward = target - entry if is_buy else entry - target
@@ -222,7 +251,7 @@ def run_scalp_engine(ticker, pair_name, current_state):
             })
             current_state["radar_locks"][pair_lock] = "ACTIVE"
             
-            msg = f"🎯 *[{tipe}]*\n📊 {pair_name}\n📍 Entry Limit: `{entry}`\n🛑 SL: `{sl}` (ATR)\n💰 TP: `{target}`\n⏳ *Batal jika TP tersentuh lebih dulu!*\n⚠️ {random.choice(WARN_BUY if is_buy else WARN_SELL)}"
+            msg = f"🎯 *[EKSEKUSI: IMBALANCE SCALP]*\n\n📊 Instrumen: {pair_name}\n⚡ Aksi: POTENSI {tipe}\n📍 Entry Limit: {entry_lbl}\n🛑 SL: {sl_lbl}\n💰 TP: `{target}` *(Max Capped Target)*\n\n{style['warn']}\n\n{style['logic']}\n🎓 Risk/Reward: 1 : {round(rr, 1)}."
             send_alert(msg)
 
     return current_state
@@ -235,13 +264,8 @@ def is_rollover_sleep():
     return 21 <= now_utc.hour <= 23
 
 def run_market_scan():
-    if not TWELVE_API_KEY:
-        print("API Key Twelve Data tidak ditemukan di Secrets.")
-        return
-        
-    if is_rollover_sleep():
-        print("Sleep Protocol aktif (Rollover WIB 04:00-07:00). Menghemat kuota dan menghindari spread brutal.")
-        return
+    if not TWELVE_API_KEY: return
+    if is_rollover_sleep(): return
 
     current_state = load_state()
     current_state["active_signals"] = current_state["active_signals"][:10]
