@@ -14,7 +14,7 @@ CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 STATE_FILE = "signals.json"
 
 INSTRUMENTS = [
-    {"name": "XAU/USD (Gold)", "ticker": "XAUUSD=X"}, # Ticker Spot Market (Sesuai XM & FBS)
+    {"name": "XAU/USD (Gold)", "ticker": "GC=F"}, # Kembali ke GC=F agar tidak diblokir yfinance
     {"name": "EUR/USD", "ticker": "EURUSD=X"},
     {"name": "GBP/USD", "ticker": "GBPUSD=X"}
 ]
@@ -61,13 +61,22 @@ WARN_SELL = [
 # ==========================================
 # 2. INFRASTRUKTUR & MANAJEMEN MEMORI
 # ==========================================
+def send_alert(message):
+    if not BOT_TOKEN or not CHAT_ID:
+        return
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    payload = {"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"}
+    try:
+        requests.post(url, json=payload, timeout=10)
+    except Exception as e:
+        print(f"Gagal mengirim Telegram: {e}")
+
 def load_state():
     default_state = {"updated_at": "", "active_signals": [], "radar_locks": {}}
     if os.path.exists(STATE_FILE):
         try:
             with open(STATE_FILE, "r") as f:
                 data = json.load(f)
-                # Sinkronisasi pengaman: jika file rusak/kosong, paksa masukkan memori default
                 for key in default_state:
                     if key not in data:
                         data[key] = default_state[key]
@@ -76,13 +85,27 @@ def load_state():
             return default_state
     return default_state
 
+def save_state(state_data):
+    state_data["updated_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    with open(STATE_FILE, "w") as f:
+        json.dump(state_data, f, indent=2)
+
+def calculate_atr_institutional(df, period=14):
+    high_low = df['High'] - df['Low']
+    high_close = (df['High'] - df['Close'].shift()).abs()
+    low_close = (df['Low'] - df['Close'].shift()).abs()
+    ranges = pd.concat([high_low, high_close, low_close], axis=1)
+    true_range = ranges.max(axis=1)
+    atr = true_range.ewm(alpha=1/period, adjust=False).mean()
+    return atr
+
 # ==========================================
 # 3. MESIN 1: CORE INSTITUTIONAL (REAKTIF M5)
 # ==========================================
 def core_institutional_engine(ticker_symbol, pair_name, current_state):
     try:
         pair_lock = f"CORE_{ticker_symbol}"
-        is_gold = "XAU" in ticker_symbol
+        is_gold = "GC=F" in ticker_symbol
         dec = 2 if is_gold else 5
 
         if current_state["radar_locks"].get(pair_lock) == "ACTIVE":
@@ -248,7 +271,7 @@ def run_scalp_engine(ticker_symbol, pair_name, current_state):
         if current_state["radar_locks"].get(pair_lock) == "ACTIVE":
             return current_state
 
-        is_gold = "XAU" in ticker_symbol
+        is_gold = "GC=F" in ticker_symbol
         dec = 2 if is_gold else 5
 
         df_h1 = yf.download(ticker_symbol, period="1mo", interval="1h", progress=False)
