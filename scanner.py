@@ -273,7 +273,7 @@ def run_scalp_engine(ticker, pair_name, current_state):
         recent_res = df_h1['High'].iloc[-24:].max() 
         target = recent_res if recent_res > entry else entry + (atr_val * 4)
 
-        entry_lbl = f"`{round(entry, dec)}` *(Harga Murni Puncak Fractal M5 + Spread Broker Anda)*"
+        entry_lbl = f"`{round(entry, dec)}` *(Harga Murni Lembah Fractal M5 + Spread Broker Anda)*"
         sl_lbl = f"`{round(sl, dec)}` *(ATR Protected)*"
         
     else:
