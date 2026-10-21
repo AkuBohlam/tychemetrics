@@ -61,38 +61,20 @@ WARN_SELL = [
 # ==========================================
 # 2. INFRASTRUKTUR & MANAJEMEN MEMORI
 # ==========================================
-def send_alert(message):
-    if not BOT_TOKEN or not CHAT_ID:
-        return
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    payload = {"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"}
-    try:
-        requests.post(url, json=payload, timeout=10)
-    except Exception as e:
-        print(f"Gagal mengirim Telegram: {e}")
-
 def load_state():
+    default_state = {"updated_at": "", "active_signals": [], "radar_locks": {}}
     if os.path.exists(STATE_FILE):
         try:
             with open(STATE_FILE, "r") as f:
-                return json.load(f)
+                data = json.load(f)
+                # Sinkronisasi pengaman: jika file rusak/kosong, paksa masukkan memori default
+                for key in default_state:
+                    if key not in data:
+                        data[key] = default_state[key]
+                return data
         except Exception:
-            pass
-    return {"updated_at": "", "active_signals": [], "radar_locks": {}}
-
-def save_state(state_data):
-    state_data["updated_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    with open(STATE_FILE, "w") as f:
-        json.dump(state_data, f, indent=2)
-
-def calculate_atr_institutional(df, period=14):
-    high_low = df['High'] - df['Low']
-    high_close = (df['High'] - df['Close'].shift()).abs()
-    low_close = (df['Low'] - df['Close'].shift()).abs()
-    ranges = pd.concat([high_low, high_close, low_close], axis=1)
-    true_range = ranges.max(axis=1)
-    atr = true_range.ewm(alpha=1/period, adjust=False).mean()
-    return atr
+            return default_state
+    return default_state
 
 # ==========================================
 # 3. MESIN 1: CORE INSTITUTIONAL (REAKTIF M5)
