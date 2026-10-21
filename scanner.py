@@ -2,7 +2,7 @@ import os
 import json
 import requests
 import pandas as pd
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import random
 
 # ==========================================
@@ -14,7 +14,7 @@ TWELVE_API_KEY = os.getenv("TWELVEDATA_API_KEY")
 STATE_FILE = "signals.json"
 
 INSTRUMENTS = [
-    {"name": "XAU/USD (Gold)", "ticker": "XAU/USD"}, 
+    {"name": "XAU (Gold)", "ticker": "XAU/USD"}, 
     {"name": "EUR/USD", "ticker": "EUR/USD"},
     {"name": "GBP/USD", "ticker": "GBP/USD"}
 ]
@@ -23,32 +23,32 @@ INSTRUMENTS = [
 # 1. DATABASE BAHASA UNIVERSAL (3 GAYA)
 # ==========================================
 STYLES_BUY = [
-    { # Gaya 1: Edukatif
+    {
         "warn": "⚠️ Peringatan Eksekusi: Jangan lupa kalibrasi harga penjemputan Anda. Pastikan Anda menambahkan spread broker masing-masing pada harga Entry agar order tereksekusi dengan sempurna.",
-        "logic": "💡 Logic: Terdeteksi jejak Bullish segar di H1. Titik pantul disiapkan tepat di area Demand M5. Kita menjemput harga di area diskon."
+        "logic": "💡 Logic: Terdeteksi jejak Bullish segar di H1. Titik pantul disiapkan presisi. Kita menjemput harga di area diskon."
     },
-    { # Gaya 2: Taktis
+    {
         "warn": "🛡️ Protokol Keamanan: Eksekusi BUY selalu menggunakan garis Ask. Tambahkan nilai spread broker Anda ke dalam angka Entry Limit di atas agar pesanan Anda tidak tertinggal oleh pergerakan market.",
-        "logic": "🧠 Analisa Sistem: Algoritma menangkap anomali volume (Engulfing) di zona akumulasi H1. Jaring limit dipasang di akar pergerakan untuk meminimalisir risiko."
+        "logic": "🧠 Analisa Sistem: Algoritma menangkap anomali volume di zona akumulasi. Jaring limit dipasang di akar pergerakan untuk meminimalisir risiko."
     },
-    { # Gaya 3: Mekanis
+    {
         "warn": "⚙️ Kalibrasi Diperlukan: Parameter mesin mengabaikan spread. Untuk aktivasi BUY yang presisi, input angka (Entry Limit + Spread) di terminal MetaTrader Anda.",
-        "logic": "📊 Metrik Mesin: Konfirmasi divergensi momentum dan Bullish Imbalance tervalidasi. Probabilitas pantulan tinggi di area penyangga M5."
+        "logic": "📊 Metrik Mesin: Konfirmasi divergensi momentum dan Bullish structure tervalidasi. Probabilitas pantulan tinggi di area penyangga mikroskopik."
     }
 ]
 
 STYLES_SELL = [
-    { # Gaya 1: Edukatif
+    {
         "warn": "⚠️ Peringatan Eksekusi: Tips Eksekusi: Karena Anda melakukan SELL, penutupan posisi (SL) menggunakan garis Ask. Wajib tambahkan spread broker Anda pada angka SL agar pengaman tidak bocor.",
-        "logic": "💡 Logic: Momentum kencang ke bawah menyisakan area premium yang belum terisi. Limit order ditempatkan untuk membonceng tren turun."
+        "logic": "💡 Logic: Momentum kencang ke bawah menyisakan area premium yang belum terisi. Limit order disiapkan secara presisi untuk membonceng tren turun."
     },
-    { # Gaya 2: Taktis
+    {
         "warn": "🛡️ Protokol Keamanan: Bahaya pelebaran spread mengintai posisi SELL Anda. Lindungi modal dengan menambahkan spread broker Anda ke dalam angka Stop Loss secara manual.",
-        "logic": "🧠 Analisa Sistem: Struktur market H1 telah rusak (Break of Structure). Kita menempatkan Sell Limit di area Supply yang tersisa sebelum institusi melanjutkan tekanan jual."
+        "logic": "🧠 Analisa Sistem: Struktur market makro telah terdistribusi. Kita menempatkan Sell Limit di area Supply yang tersisa sebelum institusi melanjutkan tekanan jual."
     },
-    { # Gaya 3: Mekanis
+    {
         "warn": "⚙️ Kalibrasi Diperlukan: Sistem proteksi ATR sudah aktif, namun belum mencakup spread. Kalkulasikan (Stop Loss + Spread Broker) pada terminal MT5 untuk mencegah SL Hunter.",
-        "logic": "📊 Metrik Mesin: Tren H1 divalidasi ke bawah. Algoritma mengunci akar Bearish Imbalance sebagai titik resistensi eksekusi optimal."
+        "logic": "📊 Metrik Mesin: Tren divalidasi ke bawah. Algoritma mengunci akar Bearish structure sebagai titik resistensi eksekusi optimal."
     }
 ]
 
@@ -85,6 +85,13 @@ def calculate_atr(df, period=14):
     low_close = (df['Low'] - df['Close'].shift()).abs()
     ranges = pd.concat([high_low, high_close, low_close], axis=1)
     return ranges.max(axis=1).ewm(alpha=1/period, adjust=False).mean()
+
+def add_fractals(df):
+    df['Fractal_Up'] = (df['High'] > df['High'].shift(1)) & (df['High'] > df['High'].shift(2)) & \
+                       (df['High'] > df['High'].shift(-1)) & (df['High'] > df['High'].shift(-2))
+    df['Fractal_Down'] = (df['Low'] < df['Low'].shift(1)) & (df['Low'] < df['Low'].shift(2)) & \
+                         (df['Low'] < df['Low'].shift(-1)) & (df['Low'] < df['Low'].shift(-2))
+    return df
 
 def fetch_twelve_data(symbol, interval, outputsize=200):
     url = f"https://api.twelvedata.com/time_series?symbol={symbol}&interval={interval}&apikey={TWELVE_API_KEY}&outputsize={outputsize}"
@@ -171,14 +178,16 @@ def core_institutional_engine(ticker, pair_name, current_state):
             entry_lbl = f"`{round(entry, dec)}` *(Harga Murni Chart)*"
             sl_lbl = f"`{round(sl, dec)}` *(ATR Protected + Spread Broker Anda)*"
         
-        risk = entry - sl if is_buy else sl - entry
-        reward = target - entry if is_buy else entry - target
+        risk = abs(entry - sl)
+        reward = abs(target - entry)
         rr = reward / risk if risk > 0 else 0
         
         if rr >= 1.5:
+            tp_lbl = "*(Structural Target)*"
             if rr > 5.0:
                 rr = 5.0
                 target = entry + (risk * 5) if is_buy else entry - (risk * 5)
+                tp_lbl = "*(Max Capped Target)*"
                 
             entry, sl, target = round(entry, dec), round(sl, dec), round(target, dec)
             tipe = "BUY LIMIT" if is_buy else "SELL LIMIT"
@@ -189,13 +198,13 @@ def core_institutional_engine(ticker, pair_name, current_state):
             })
             current_state["radar_locks"][pair_lock] = "ACTIVE"
             
-            msg = f"🎯 *[FASE 2: EKSEKUSI] - CORE INSTITUTIONAL*\n\n📊 Instrumen: {pair_name}\n⚡ Aksi: POTENSI {tipe}\n📍 Entry Limit: {entry_lbl}\n🛑 SL: {sl_lbl}\n💰 TP: `{target}` *(Max Capped Target)*\n\n{style['warn']}\n\n{style['logic']}\n🎓 Risk/Reward: 1 : {round(rr, 1)}."
+            msg = f"🎯 *[FASE 2: EKSEKUSI] - CORE INSTITUTIONAL*\n\n📊 Instrumen: {pair_name}\n⚡ Aksi: POTENSI {tipe}\n📍 Entry Limit: {entry_lbl}\n🛑 SL: {sl_lbl}\n💰 TP: `{target}` {tp_lbl}\n\n{style['warn']}\n\n{style['logic']}\n🎓 Risk/Reward: 1 : {round(rr, 1)}."
             send_alert(msg)
 
     return current_state
 
 # ==========================================
-# 4. MESIN 2: IMBALANCE SCALPER (DIRECT)
+# 4. MESIN 2: IMBALANCE SCALPER (FRACTAL)
 # ==========================================
 def run_scalp_engine(ticker, pair_name, current_state):
     pair_lock = f"SCALP_{ticker}"
@@ -203,56 +212,109 @@ def run_scalp_engine(ticker, pair_name, current_state):
     
     if current_state["radar_locks"].get(pair_lock) == "ACTIVE": return current_state
 
-    df_h1 = fetch_twelve_data(ticker, "1h", 100)
+    # Tarik H1 dan hitung Fractal
+    df_h1 = fetch_twelve_data(ticker, "1h", 200)
     if df_h1.empty or len(df_h1) < 55: return current_state
     
     df_h1['EMA_21'] = df_h1['Close'].ewm(span=21).mean()
     df_h1['EMA_50'] = df_h1['Close'].ewm(span=50).mean()
     df_h1['Bull_Imb'] = df_h1['Low'] > df_h1['High'].shift(2)
     df_h1['Bear_Imb'] = df_h1['High'] < df_h1['Low'].shift(2)
-    df_h1['ATR'] = calculate_atr(df_h1)
+    df_h1 = add_fractals(df_h1)
     
-    last = df_h1.iloc[-2]
-    atr_val = df_h1['ATR'].iloc[-1]
+    last_idx = len(df_h1) - 2 # Fokus ke candle yang sudah close
+    if last_idx < 2: return current_state
+    
+    last = df_h1.iloc[last_idx]
     
     is_buy = last['EMA_21'] > last['EMA_50'] and last['Bull_Imb']
     is_sell = last['EMA_21'] < last['EMA_50'] and last['Bear_Imb']
     
-    if is_buy or is_sell:
-        style = random.choice(STYLES_BUY if is_buy else STYLES_SELL)
-        batas_bawah_area = last['Low']
-        batas_atas_area = last['High']
+    if not (is_buy or is_sell): return current_state
 
-        if is_buy:
-            entry = last['High']
-            sl = batas_bawah_area - atr_val
-            target = entry + (atr_val * 3)
-            entry_lbl = f"`{round(entry, dec)}` *(Harga Murni Chart + Spread Broker Anda)*"
-            sl_lbl = f"`{round(sl, dec)}` *(ATR Protected)*"
-        else:
-            entry = last['Low']
-            sl = batas_atas_area + atr_val
-            target = entry - (atr_val * 3)
-            entry_lbl = f"`{round(entry, dec)}` *(Harga Murni Chart)*"
-            sl_lbl = f"`{round(sl, dec)}` *(ATR Protected + Spread Broker Anda)*"
+    # Cari H1 Parent Fractal Candle
+    parent_time = None
+    for i in range(last_idx - 1, 1, -1):
+        if is_buy and df_h1.iloc[i]['Fractal_Down']:
+            parent_time = df_h1.iloc[i]['datetime']
+            break
+        elif is_sell and df_h1.iloc[i]['Fractal_Up']:
+            parent_time = df_h1.iloc[i]['datetime']
+            break
+
+    if not parent_time: return current_state
+
+    # Tarik M5 (Output lebih besar agar mencakup waktu parent_time)
+    df_m5 = fetch_twelve_data(ticker, "5min", 500)
+    if df_m5.empty: return current_state
+    
+    df_m5['ATR'] = calculate_atr(df_m5)
+    df_m5 = add_fractals(df_m5)
+    
+    # Filter rentang waktu M5 yang berada di dalam 1 jam candle H1 Fractal Induk
+    mask = (df_m5['datetime'] >= parent_time) & (df_m5['datetime'] < parent_time + timedelta(hours=1))
+    df_m5_zone = df_m5[mask]
+    
+    if df_m5_zone.empty: return current_state
+    
+    atr_val = df_m5['ATR'].iloc[-1]
+    style = random.choice(STYLES_BUY if is_buy else STYLES_SELL)
+    
+    if is_buy:
+        # Cari Lembah terdalam di zona M5
+        fractals_m5 = df_m5_zone[df_m5_zone['Fractal_Down'] == True]
+        if fractals_m5.empty: return current_state
+        entry_candle = fractals_m5.loc[fractals_m5['Low'].idxmin()]
         
-        risk = entry - sl if is_buy else sl - entry
-        reward = target - entry if is_buy else entry - target
-        rr = min(reward / risk if risk > 0 else 0, 5.0)
-        target = entry + (risk * rr) if is_buy else entry - (risk * rr)
+        entry = entry_candle['Low']
+        sl = entry - atr_val
         
-        if rr >= 1.5:
-            entry, sl, target = round(entry, dec), round(sl, dec), round(target, dec)
-            tipe = "BUY LIMIT" if is_buy else "SELL LIMIT"
+        # Cari Resistance terdekat sebagai TP struktural
+        recent_res = df_h1['High'].iloc[-24:].max() 
+        target = recent_res if recent_res > entry else entry + (atr_val * 4)
+
+        entry_lbl = f"`{round(entry, dec)}` *(Harga Murni Puncak Fractal M5 + Spread Broker Anda)*"
+        sl_lbl = f"`{round(sl, dec)}` *(ATR Protected)*"
+        
+    else:
+        # Cari Puncak tertinggi di zona M5
+        fractals_m5 = df_m5_zone[df_m5_zone['Fractal_Up'] == True]
+        if fractals_m5.empty: return current_state
+        entry_candle = fractals_m5.loc[fractals_m5['High'].idxmax()]
+        
+        entry = entry_candle['High']
+        sl = entry + atr_val
+        
+        # Cari Support terdekat sebagai TP struktural
+        recent_sup = df_h1['Low'].iloc[-24:].min()
+        target = recent_sup if recent_sup < entry else entry - (atr_val * 4)
+
+        entry_lbl = f"`{round(entry, dec)}` *(Harga Murni Puncak Fractal M5)*"
+        sl_lbl = f"`{round(sl, dec)}` *(ATR Protected + Spread Broker Anda)*"
+
+    # Kalkulasi Risk/Reward Dinamis
+    risk = abs(entry - sl)
+    reward = abs(target - entry)
+    rr = reward / risk if risk > 0 else 0
+    
+    if rr >= 1.5:
+        tp_lbl = "*(Structural Target)*"
+        if rr > 5.0:
+            rr = 5.0
+            target = entry + (risk * 5) if is_buy else entry - (risk * 5)
+            tp_lbl = "*(Max Capped Target)*"
             
-            current_state["active_signals"].insert(0, {
-                "strategy": "ALGO: IMBALANCE_SCALP", "pair": pair_name, "type": tipe,
-                "entry": str(entry), "sl": str(sl), "tp": str(target), "rr": f"1 : {round(rr, 1)}", "status": "OPEN"
-            })
-            current_state["radar_locks"][pair_lock] = "ACTIVE"
-            
-            msg = f"🎯 *[EKSEKUSI: IMBALANCE SCALP]*\n\n📊 Instrumen: {pair_name}\n⚡ Aksi: POTENSI {tipe}\n📍 Entry Limit: {entry_lbl}\n🛑 SL: {sl_lbl}\n💰 TP: `{target}` *(Max Capped Target)*\n\n{style['warn']}\n\n{style['logic']}\n🎓 Risk/Reward: 1 : {round(rr, 1)}."
-            send_alert(msg)
+        entry, sl, target = round(entry, dec), round(sl, dec), round(target, dec)
+        tipe = "BUY LIMIT" if is_buy else "SELL LIMIT"
+        
+        current_state["active_signals"].insert(0, {
+            "strategy": "ALGO: IMBALANCE_SCALP", "pair": pair_name, "type": tipe,
+            "entry": str(entry), "sl": str(sl), "tp": str(target), "rr": f"1 : {round(rr, 1)}", "status": "OPEN"
+        })
+        current_state["radar_locks"][pair_lock] = "ACTIVE"
+        
+        msg = f"🎯 *[EKSEKUSI: IMBALANCE SCALP]*\n\n📊 Instrumen: {pair_name}\n⚡ Aksi: POTENSI {tipe}\n📍 Entry Limit: {entry_lbl}\n🛑 SL: {sl_lbl}\n💰 TP: `{target}` {tp_lbl}\n\n{style['warn']}\n\n{style['logic']}\n🎓 Risk/Reward: 1 : {round(rr, 1)}."
+        send_alert(msg)
 
     return current_state
 
