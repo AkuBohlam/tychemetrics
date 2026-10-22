@@ -191,9 +191,11 @@ def core_institutional_engine(ticker, pair_name, current_state):
             entry, sl, target = round(entry, dec), round(sl, dec), round(target, dec)
             tipe = "BUY LIMIT" if is_buy else "SELL LIMIT"
             
+            # PENAMBAHAN: Stempel waktu (timestamp) ditanamkan saat sinyal dibuat
             current_state["active_signals"].insert(0, {
                 "strategy": "ALGO: CORE_INSTITUTIONAL", "pair": pair_name, "type": tipe,
-                "entry": str(entry), "sl": str(sl), "tp": str(target), "rr": f"1 : {round(rr, 1)}", "status": "OPEN"
+                "entry": str(entry), "sl": str(sl), "tp": str(target), "rr": f"1 : {round(rr, 1)}", "status": "OPEN",
+                "timestamp": datetime.now(timezone.utc).timestamp()
             })
             current_state["radar_locks"][pair_lock] = "ACTIVE"
             
@@ -306,9 +308,11 @@ def run_scalp_engine(ticker, pair_name, current_state):
         entry, sl, target = round(entry, dec), round(sl, dec), round(target, dec)
         tipe = "BUY LIMIT" if is_buy else "SELL LIMIT"
         
+        # PENAMBAHAN: Stempel waktu (timestamp) ditanamkan saat sinyal dibuat
         current_state["active_signals"].insert(0, {
             "strategy": "ALGO: IMBALANCE_SCALP", "pair": pair_name, "type": tipe,
-            "entry": str(entry), "sl": str(sl), "tp": str(target), "rr": f"1 : {round(rr, 1)}", "status": "OPEN"
+            "entry": str(entry), "sl": str(sl), "tp": str(target), "rr": f"1 : {round(rr, 1)}", "status": "OPEN",
+            "timestamp": datetime.now(timezone.utc).timestamp()
         })
         current_state["radar_locks"][pair_lock] = "ACTIVE"
         
@@ -318,7 +322,7 @@ def run_scalp_engine(ticker, pair_name, current_state):
     return current_state
 
 # ==========================================
-# 5. RUNNER & SLEEP PROTOCOL
+# 5. RUNNER & PEMBERSIHAN OTOMATIS (AUTO-CLEANUP 12 JAM)
 # ==========================================
 def is_rollover_sleep():
     now_utc = datetime.now(timezone.utc)
@@ -329,7 +333,23 @@ def run_market_scan():
     if is_rollover_sleep(): return
 
     current_state = load_state()
-    current_state["active_signals"] = current_state["active_signals"][:10]
+    
+    # ---------------------------------------------------------
+    # PENAMBAHAN: SISTEM PEMBUANGAN SINYAL KADALUARSA (12 JAM)
+    # ---------------------------------------------------------
+    now_ts = datetime.now(timezone.utc).timestamp()
+    valid_signals = []
+    
+    for sig in current_state.get("active_signals", []):
+        sig_time = sig.get("timestamp", 0)
+        
+        # Jika umur sinyal kurang dari 12 jam (12 * 3600 detik), simpan. 
+        # Jika lebih, sinyal otomatis dibuang (kadaluarsa).
+        if sig_time > 0 and (now_ts - sig_time) < (12 * 3600):
+            valid_signals.append(sig)
+            
+    current_state["active_signals"] = valid_signals[:10]
+    # ---------------------------------------------------------
 
     for item in INSTRUMENTS:
         current_state = core_institutional_engine(item["ticker"], item["name"], current_state)
