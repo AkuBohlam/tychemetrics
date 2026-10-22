@@ -1,28 +1,7 @@
 {
-  "updated_at": "2026-10-22 01:53 UTC",
+  "updated_at": "2026-10-22 02:16 UTC",
   "active_signal": null,
-  "active_signals": [
-    {
-      "strategy": "ALGO: IMBALANCE_SCALP",
-      "pair": "EUR/USD",
-      "type": "BUY LIMIT",
-      "entry": "1.12144",
-      "sl": "1.12114",
-      "tp": "1.12296",
-      "rr": "1 : 5.0",
-      "status": "OPEN"
-    },
-    {
-      "strategy": "ALGO: IMBALANCE_SCALP",
-      "pair": "GBP/USD",
-      "type": "BUY LIMIT",
-      "entry": "1.33651",
-      "sl": "1.33611",
-      "tp": "1.33853",
-      "rr": "1 : 5.0",
-      "status": "OPEN"
-    }
-  ],
+  "active_signals": [],
   "radar_locks": {
     "SCALP_GBP/USD": "ACTIVE",
     "SCALP_EUR/USD": "ACTIVE"
