@@ -108,7 +108,7 @@ def fetch_twelve_data(symbol, interval, outputsize=200):
     return pd.DataFrame()
 
 # ==========================================
-# 3. MESIN 1: CORE INSTITUTIONAL (REAKTIF M5)
+# 3. MESIN 1: SMART MONEY CONCEPT (FVG H1 + CHOCH M5)
 # ==========================================
 def core_institutional_engine(ticker, pair_name, current_state):
     pair_lock = f"CORE_{ticker}"
@@ -116,64 +116,104 @@ def core_institutional_engine(ticker, pair_name, current_state):
     
     if current_state["radar_locks"].get(pair_lock) == "ACTIVE": return current_state
 
+    # Tarik data H1
     df_h1 = fetch_twelve_data(ticker, "1h", 200)
     if df_h1.empty or len(df_h1) < 200: return current_state
 
-    df_h1['MA50'] = df_h1['Close'].rolling(50).mean()
-    df_h1['MA200'] = df_h1['Close'].rolling(200).mean()
+    # 1. Filter Tren Makro (EMA 50 & 200)
+    df_h1['EMA50'] = df_h1['Close'].ewm(span=50, adjust=False).mean()
+    df_h1['EMA200'] = df_h1['Close'].ewm(span=200, adjust=False).mean()
     
     last_h1 = df_h1.iloc[-2]
-    c_h1, ma50, ma200 = last_h1['Close'], last_h1['MA50'], last_h1['MA200']
+    c_h1, ema50, ema200 = last_h1['Close'], last_h1['EMA50'], last_h1['EMA200']
     
-    trend = "UPTREND" if (ma50 > ma200 and c_h1 > ma50) else "DOWNTREND" if (ma50 < ma200 and c_h1 < ma50) else "NONE"
+    trend = "UPTREND" if (ema50 > ema200 and c_h1 > ema50) else "DOWNTREND" if (ema50 < ema200 and c_h1 < ema50) else "NONE"
     if trend == "NONE": return current_state
 
-    lookback = 48
-    major_res = df_h1['High'].iloc[-lookback:-2].max()
-    major_sup = df_h1['Low'].iloc[-lookback:-2].min()
+    # 2. Pemetaan Fibo 50% & Swing Area
+    lookback_h1 = df_h1.iloc[-48:-1]
+    swing_high = lookback_h1['High'].max()
+    swing_low = lookback_h1['Low'].min()
+    fibo_50 = (swing_high + swing_low) / 2.0
 
-    buffer = 0.0020
-    ob_bot = major_sup if trend == "UPTREND" else (major_res - buffer)
-    ob_top = (major_sup + buffer) if trend == "UPTREND" else major_res
+    # 3. Mencari Zona FVG Valid (Diskon/Premium)
+    fvg_top, fvg_bot = None, None
+    for i in range(len(df_h1)-15, len(df_h1)-1): 
+        if trend == "UPTREND":
+            if df_h1['Low'].iloc[i] > df_h1['High'].iloc[i-2]:
+                top, bot = df_h1['Low'].iloc[i], df_h1['High'].iloc[i-2]
+                if top < fibo_50: 
+                    fvg_top, fvg_bot = top, bot
+        elif trend == "DOWNTREND":
+            if df_h1['High'].iloc[i] < df_h1['Low'].iloc[i-2]:
+                bot, top = df_h1['High'].iloc[i], df_h1['Low'].iloc[i-2]
+                if bot > fibo_50: 
+                    fvg_top, fvg_bot = top, bot
 
-    curr_price = df_h1['Close'].iloc[-1]
-    
-    if not (ob_bot <= curr_price <= ob_top):
+    if not fvg_top or not fvg_bot:
         current_state["radar_locks"].pop(pair_lock, None)
         return current_state 
 
-    if current_state["radar_locks"].get(pair_lock) != "RADAR":
-        current_state["radar_locks"][pair_lock] = "RADAR"
-        arah = "Demand (Potensi BUY LIMIT)" if trend == "UPTREND" else "Supply (Potensi SELL LIMIT)"
-        send_alert(f"⚠️ *[FASE 1: RADAR] - CORE INSTITUTIONAL*\n📊 Instrumen: {pair_name}\n🔍 Status: Memasuki Zona {arah}.\n⏳ Tindakan: Siaga di MT5! Tunggu konfirmasi Engulfing di M5 dari sistem.")
+    curr_price = df_h1['Close'].iloc[-1]
+    touched_fvg = (curr_price <= fvg_top) if trend == "UPTREND" else (curr_price >= fvg_bot)
+    
+    if not touched_fvg:
+        current_state["radar_locks"].pop(pair_lock, None)
         return current_state
 
+    # Fase 1: Radar FVG H1
+    if current_state["radar_locks"].get(pair_lock) != "RADAR":
+        current_state["radar_locks"][pair_lock] = "RADAR"
+        arah = "Demand (Diskon)" if trend == "UPTREND" else "Supply (Premium)"
+        send_alert(f"⚠️ *[FASE 1: RADAR] - SMC FVG*\n📊 Instrumen: {pair_name}\n🔍 Status: Harga menyentuh Zona H1 {arah}.\n⏳ Tindakan: Memantau M5 untuk konfirmasi Change of Character (ChoCh).")
+        return current_state
+
+    # Fase 2: Konfirmasi M5 (ChoCh & Order Block)
     df_m5 = fetch_twelve_data(ticker, "5min", 100)
     if df_m5.empty: return current_state
     
     df_m5['ATR'] = calculate_atr(df_m5)
-    prev, curr = df_m5.iloc[-2], df_m5.iloc[-1]
-    atr_val = curr['ATR']
-
-    bull_engulf = (prev['Close'] < prev['Open']) and (curr['Close'] > curr['Open']) and (curr['Close'] > prev['Open']) and (curr['Open'] <= prev['Close'])
-    bear_engulf = (prev['Close'] > prev['Open']) and (curr['Close'] < curr['Open']) and (curr['Close'] < prev['Open']) and (curr['Open'] >= prev['Close'])
-
-    is_buy = trend == "UPTREND" and bull_engulf
-    is_sell = trend == "DOWNTREND" and bear_engulf
+    df_m5 = add_fractals(df_m5)
     
+    recent_m5 = df_m5.iloc[-24:] 
+    fractal_downs = recent_m5[recent_m5['Fractal_Down'] == True]
+    fractal_ups = recent_m5[recent_m5['Fractal_Up'] == True]
+    
+    if fractal_downs.empty or fractal_ups.empty: return current_state
+    
+    atr_val = df_m5['ATR'].iloc[-1]
+    is_buy, is_sell = False, False
+    entry, sl, target = 0, 0, 0
+    
+    if trend == "UPTREND":
+        lowest_fractal = fractal_downs.loc[fractal_downs['Low'].idxmin()]
+        recent_high = fractal_ups['High'].max()
+        
+        # Logika ChoCh Buy: Harga M5 Break Out Resistance terbaru & Lembah terbentuk di dalam FVG
+        if df_m5['Close'].iloc[-1] > recent_high and lowest_fractal['Low'] <= fvg_top:
+            is_buy = True
+            entry = lowest_fractal['Low']
+            sl = entry - atr_val
+            target = swing_high 
+            
+    elif trend == "DOWNTREND":
+        highest_fractal = fractal_ups.loc[fractal_ups['High'].idxmax()]
+        recent_low = fractal_downs['Low'].min()
+        
+        # Logika ChoCh Sell: Harga M5 Break Down Support terbaru & Puncak terbentuk di dalam FVG
+        if df_m5['Close'].iloc[-1] < recent_low and highest_fractal['High'] >= fvg_bot:
+            is_sell = True
+            entry = highest_fractal['High']
+            sl = entry + atr_val
+            target = swing_low
+
     if is_buy or is_sell:
         style = random.choice(STYLES_BUY if is_buy else STYLES_SELL)
         
         if is_buy:
-            entry = curr['Close']
-            sl = ob_bot - atr_val
-            target = major_res
-            entry_lbl = f"`{round(entry, dec)}` *(Harga Murni Chart + Spread Broker Anda)*"
+            entry_lbl = f"`{round(entry, dec)}` *(Harga Murni + Spread Broker Anda)*"
             sl_lbl = f"`{round(sl, dec)}` *(ATR Protected)*"
         else:
-            entry = curr['Close']
-            sl = ob_top + atr_val
-            target = major_sup
             entry_lbl = f"`{round(entry, dec)}` *(Harga Murni Chart)*"
             sl_lbl = f"`{round(sl, dec)}` *(ATR Protected + Spread Broker Anda)*"
         
@@ -191,15 +231,14 @@ def core_institutional_engine(ticker, pair_name, current_state):
             entry, sl, target = round(entry, dec), round(sl, dec), round(target, dec)
             tipe = "BUY LIMIT" if is_buy else "SELL LIMIT"
             
-            # PENAMBAHAN: Stempel waktu (timestamp) ditanamkan saat sinyal dibuat
             current_state["active_signals"].insert(0, {
-                "strategy": "ALGO: CORE_INSTITUTIONAL", "pair": pair_name, "type": tipe,
+                "strategy": "ALGO: SMC_FVG_CHOCH", "pair": pair_name, "type": tipe,
                 "entry": str(entry), "sl": str(sl), "tp": str(target), "rr": f"1 : {round(rr, 1)}", "status": "OPEN",
                 "timestamp": datetime.now(timezone.utc).timestamp()
             })
             current_state["radar_locks"][pair_lock] = "ACTIVE"
             
-            msg = f"🎯 *[FASE 2: EKSEKUSI] - CORE INSTITUTIONAL*\n\n📊 Instrumen: {pair_name}\n⚡ Aksi: POTENSI {tipe}\n📍 Entry Limit: {entry_lbl}\n🛑 SL: {sl_lbl}\n💰 TP: `{target}` {tp_lbl}\n\n{style['warn']}\n\n{style['logic']}\n🎓 Risk/Reward: 1 : {round(rr, 1)}."
+            msg = f"🎯 *[FASE 2: EKSEKUSI] - SMC FVG & OB*\n\n📊 Instrumen: {pair_name}\n⚡ Aksi: POTENSI {tipe}\n📍 Entry Limit: {entry_lbl}\n🛑 SL: {sl_lbl}\n💰 TP: `{target}` {tp_lbl}\n\n{style['warn']}\n\n{style['logic']}\n🎓 Risk/Reward: 1 : {round(rr, 1)}."
             send_alert(msg)
 
     return current_state
@@ -262,7 +301,6 @@ def run_scalp_engine(ticker, pair_name, current_state):
     style = random.choice(STYLES_BUY if is_buy else STYLES_SELL)
     
     if is_buy:
-        # Cari Lembah terdalam di zona M5
         fractals_m5 = df_m5_zone[df_m5_zone['Fractal_Down'] == True]
         if fractals_m5.empty: return current_state
         entry_candle = fractals_m5.loc[fractals_m5['Low'].idxmin()]
@@ -270,7 +308,6 @@ def run_scalp_engine(ticker, pair_name, current_state):
         entry = entry_candle['Low']
         sl = entry - atr_val
         
-        # Cari Resistance terdekat sebagai TP struktural
         recent_res = df_h1['High'].iloc[-24:].max() 
         target = recent_res if recent_res > entry else entry + (atr_val * 4)
 
@@ -278,7 +315,6 @@ def run_scalp_engine(ticker, pair_name, current_state):
         sl_lbl = f"`{round(sl, dec)}` *(ATR Protected)*"
         
     else:
-        # Cari Puncak tertinggi di zona M5
         fractals_m5 = df_m5_zone[df_m5_zone['Fractal_Up'] == True]
         if fractals_m5.empty: return current_state
         entry_candle = fractals_m5.loc[fractals_m5['High'].idxmax()]
@@ -286,14 +322,12 @@ def run_scalp_engine(ticker, pair_name, current_state):
         entry = entry_candle['High']
         sl = entry + atr_val
         
-        # Cari Support terdekat sebagai TP struktural
         recent_sup = df_h1['Low'].iloc[-24:].min()
         target = recent_sup if recent_sup < entry else entry - (atr_val * 4)
 
         entry_lbl = f"`{round(entry, dec)}` *(Harga Murni Puncak Fractal M5)*"
         sl_lbl = f"`{round(sl, dec)}` *(ATR Protected + Spread Broker Anda)*"
 
-    # Kalkulasi Risk/Reward Dinamis
     risk = abs(entry - sl)
     reward = abs(target - entry)
     rr = reward / risk if risk > 0 else 0
@@ -308,7 +342,6 @@ def run_scalp_engine(ticker, pair_name, current_state):
         entry, sl, target = round(entry, dec), round(sl, dec), round(target, dec)
         tipe = "BUY LIMIT" if is_buy else "SELL LIMIT"
         
-        # PENAMBAHAN: Stempel waktu (timestamp) ditanamkan saat sinyal dibuat
         current_state["active_signals"].insert(0, {
             "strategy": "ALGO: IMBALANCE_SCALP", "pair": pair_name, "type": tipe,
             "entry": str(entry), "sl": str(sl), "tp": str(target), "rr": f"1 : {round(rr, 1)}", "status": "OPEN",
@@ -334,22 +367,16 @@ def run_market_scan():
 
     current_state = load_state()
     
-    # ---------------------------------------------------------
-    # PENAMBAHAN: SISTEM PEMBUANGAN SINYAL KADALUARSA (12 JAM)
-    # ---------------------------------------------------------
     now_ts = datetime.now(timezone.utc).timestamp()
     valid_signals = []
     
     for sig in current_state.get("active_signals", []):
         sig_time = sig.get("timestamp", 0)
         
-        # Jika umur sinyal kurang dari 12 jam (12 * 3600 detik), simpan. 
-        # Jika lebih, sinyal otomatis dibuang (kadaluarsa).
         if sig_time > 0 and (now_ts - sig_time) < (12 * 3600):
             valid_signals.append(sig)
             
     current_state["active_signals"] = valid_signals[:10]
-    # ---------------------------------------------------------
 
     for item in INSTRUMENTS:
         current_state = core_institutional_engine(item["ticker"], item["name"], current_state)
