@@ -2,6 +2,7 @@ import os
 import json
 import requests
 import pandas as pd
+import copy
 from datetime import datetime, timedelta, timezone
 import random
 
@@ -62,7 +63,7 @@ def send_alert(message):
     except: pass
 
 def load_state():
-    default = {"updated_at": "", "active_signals": [], "radar_locks": {}}
+    default = {"system_status": "ONLINE", "updated_at": "", "active_signals": [], "radar_locks": {}}
     if os.path.exists(STATE_FILE):
         try:
             with open(STATE_FILE, "r") as f:
@@ -116,7 +117,6 @@ def core_institutional_engine(ticker, pair_name, current_state):
     
     if current_state["radar_locks"].get(pair_lock) == "ACTIVE": return current_state
 
-    # Tarik data H1
     df_h1 = fetch_twelve_data(ticker, "1h", 200)
     if df_h1.empty or len(df_h1) < 200: return current_state
 
@@ -189,7 +189,6 @@ def core_institutional_engine(ticker, pair_name, current_state):
         lowest_fractal = fractal_downs.loc[fractal_downs['Low'].idxmin()]
         recent_high = fractal_ups['High'].max()
         
-        # Logika ChoCh Buy: Harga M5 Break Out Resistance terbaru & Lembah terbentuk di dalam FVG
         if df_m5['Close'].iloc[-1] > recent_high and lowest_fractal['Low'] <= fvg_top:
             is_buy = True
             entry = lowest_fractal['Low']
@@ -200,7 +199,6 @@ def core_institutional_engine(ticker, pair_name, current_state):
         highest_fractal = fractal_ups.loc[fractal_ups['High'].idxmax()]
         recent_low = fractal_downs['Low'].min()
         
-        # Logika ChoCh Sell: Harga M5 Break Down Support terbaru & Puncak terbentuk di dalam FVG
         if df_m5['Close'].iloc[-1] < recent_low and highest_fractal['High'] >= fvg_bot:
             is_sell = True
             entry = highest_fractal['High']
@@ -252,7 +250,6 @@ def run_scalp_engine(ticker, pair_name, current_state):
     
     if current_state["radar_locks"].get(pair_lock) == "ACTIVE": return current_state
 
-    # Tarik H1 dan hitung Fractal
     df_h1 = fetch_twelve_data(ticker, "1h", 200)
     if df_h1.empty or len(df_h1) < 55: return current_state
     
@@ -262,7 +259,7 @@ def run_scalp_engine(ticker, pair_name, current_state):
     df_h1['Bear_Imb'] = df_h1['High'] < df_h1['Low'].shift(2)
     df_h1 = add_fractals(df_h1)
     
-    last_idx = len(df_h1) - 2 # Fokus ke candle yang sudah close
+    last_idx = len(df_h1) - 2 
     if last_idx < 2: return current_state
     
     last = df_h1.iloc[last_idx]
@@ -272,7 +269,6 @@ def run_scalp_engine(ticker, pair_name, current_state):
     
     if not (is_buy or is_sell): return current_state
 
-    # Cari H1 Parent Fractal Candle
     parent_time = None
     for i in range(last_idx - 1, 1, -1):
         if is_buy and df_h1.iloc[i]['Fractal_Down']:
@@ -284,14 +280,12 @@ def run_scalp_engine(ticker, pair_name, current_state):
 
     if not parent_time: return current_state
 
-    # Tarik M5 (Output lebih besar agar mencakup waktu parent_time)
     df_m5 = fetch_twelve_data(ticker, "5min", 500)
     if df_m5.empty: return current_state
     
     df_m5['ATR'] = calculate_atr(df_m5)
     df_m5 = add_fractals(df_m5)
     
-    # Filter rentang waktu M5 yang berada di dalam 1 jam candle H1 Fractal Induk
     mask = (df_m5['datetime'] >= parent_time) & (df_m5['datetime'] < parent_time + timedelta(hours=1))
     df_m5_zone = df_m5[mask]
     
@@ -355,34 +349,64 @@ def run_scalp_engine(ticker, pair_name, current_state):
     return current_state
 
 # ==========================================
-# 5. RUNNER & PEMBERSIHAN OTOMATIS (AUTO-CLEANUP 12 JAM)
+# 5. RUNNER SMART-SAVE (ANTI-THROTTLING)
 # ==========================================
 def is_rollover_sleep():
     now_utc = datetime.now(timezone.utc)
     return 21 <= now_utc.hour <= 23
 
 def run_market_scan():
-    if not TWELVE_API_KEY: return
-    if is_rollover_sleep(): return
-
+    if not TWELVE_API_KEY: 
+        print("API Key tidak ditemukan. Eksekusi dibatalkan.")
+        return
+    
+    # Memuat status data terakhir
     current_state = load_state()
     
+    # 1. Merekam Memori Awal (Snapshot) untuk Perbandingan
+    initial_signals = copy.deepcopy(current_state.get("active_signals", []))
+    initial_radar = copy.deepcopy(current_state.get("radar_locks", {}))
+    initial_status = current_state.get("system_status", "ONLINE")
+    
+    # 2. Blokir Eksekusi Saat Rollover Sleep
+    if is_rollover_sleep():
+        current_state["system_status"] = "ROLLOVER SLEEP"
+        # Jika status baru saja berubah dari ONLINE ke SLEEP, izinkan save
+        if current_state["system_status"] != initial_status:
+            save_state(current_state)
+            print("Memasuki Rollover Sleep. Status disinkronisasi.")
+        else:
+            print("Sistem masih Rollover Sleep. Membatalkan penyimpanan memori.")
+        return
+
+    current_state["system_status"] = "ONLINE"
+    
+    # 3. Proses Auto-Cleanup 12 Jam
     now_ts = datetime.now(timezone.utc).timestamp()
     valid_signals = []
-    
     for sig in current_state.get("active_signals", []):
         sig_time = sig.get("timestamp", 0)
-        
         if sig_time > 0 and (now_ts - sig_time) < (12 * 3600):
             valid_signals.append(sig)
             
     current_state["active_signals"] = valid_signals[:10]
 
+    # 4. Eksekusi Mesin Pemindai
     for item in INSTRUMENTS:
         current_state = core_institutional_engine(item["ticker"], item["name"], current_state)
         current_state = run_scalp_engine(item["ticker"], item["name"], current_state)
         
-    save_state(current_state)
+    # 5. Protokol Smart-Save (Anti-Throttling GitHub)
+    final_signals = current_state.get("active_signals", [])
+    final_radar = current_state.get("radar_locks", {})
+    final_status = current_state.get("system_status", "ONLINE")
+    
+    # Evaluasi komparatif: JIKA ADA YANG BERUBAH, BARU SIMPAN.
+    if (initial_signals != final_signals) or (initial_radar != final_radar) or (initial_status != final_status):
+        save_state(current_state)
+        print("Perubahan Data Terdeteksi (Sinyal/Radar/Status Baru). Memori diperbarui.")
+    else:
+        print("Tidak ada pergerakan pasar atau perubahan sinyal. Membatalkan penyimpanan untuk mencegah GitHub Throttling.")
 
 if __name__ == "__main__":
     run_market_scan()
