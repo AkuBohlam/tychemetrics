@@ -1,10 +1,10 @@
 {
-  "updated_at": "2026-10-30 02:51 UTC",
+  "updated_at": "2026-10-30 23:43 UTC",
   "active_signal": null,
   "active_signals": [],
   "radar_locks": {
     "SCALP_GBP/USD": "ACTIVE",
     "SCALP_EUR/USD": "ACTIVE"
   },
-  "system_status": "ONLINE"
+  "system_status": "ROLLOVER SLEEP"
 }
