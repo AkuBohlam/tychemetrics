@@ -1,11 +1,10 @@
 {
-  "updated_at": "2026-11-09 01:58 UTC",
+  "updated_at": "2026-11-10 02:24 UTC",
   "active_signal": null,
   "active_signals": [],
   "radar_locks": {
     "SCALP_GBP/USD": "ACTIVE",
-    "SCALP_EUR/USD": "ACTIVE",
-    "CORE_EUR/USD": "RADAR"
+    "SCALP_EUR/USD": "ACTIVE"
   },
   "system_status": "ONLINE"
 }
