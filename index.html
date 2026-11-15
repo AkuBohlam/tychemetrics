@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TycheMetrics | Command Center</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --gold-accent: #D4AF37;
+            --text-main: #E0E0E0;
+            --text-muted: #666666;
+            --buy-color: #00FF41;
+            --sell-color: #FF3333;
+            --border-dark: #333333;
+        }
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Courier New', Courier, monospace;
+            margin: 0;
+            padding: 2% 5%;
+        }
+        header {
+            border-bottom: 1px solid var(--gold-accent);
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+        h1 {
+            margin: 0;
+            color: var(--gold-accent);
+            font-size: 1.8rem;
+            letter-spacing: 2px;
+        }
+        .tagline {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            letter-spacing: 3px;
+            margin-top: 5px;
+        }
+        .status-bar {
+            font-size: 0.85rem;
+            text-align: right;
+        }
+        .status-indicator {
+            color: var(--gold-accent);
+            font-weight: bold;
+        }
+        .terminal-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 20px;
+        }
+        .signal-card {
+            background-color: #0A0A0A;
+            border: 1px solid var(--border-dark);
+            padding: 20px;
+            border-left: 3px solid var(--gold-accent);
+        }
+        .signal-header {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px dashed var(--border-dark);
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        .instrument { font-weight: bold; font-size: 1.2rem; }
+        .type-buy { color: var(--buy-color); font-weight: bold; }
+        .type-sell { color: var(--sell-color); font-weight: bold; }
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            font-size: 0.95rem;
+        }
+        .label { color: var(--text-muted); }
+        .value { font-weight: bold; }
+        .val-gold { color: var(--gold-accent); }
+        .logic-log {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px dashed var(--border-dark);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+        .blinking {
+            animation: blinker 2s linear infinite;
+        }
+        @keyframes blinker {
+            50% { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div>
+            <h1>TYCHEMETRICS</h1>
+            <div class="tagline">PRECISION SIGNALS. MEASURED RISK.</div>
+        </div>
+        <div class="status-bar">
+            <div>SYSTEM: <span class="status-indicator">ONLINE</span></div>
+            <div>LAST SYNC: <span id="last-update" class="status-indicator blinking">FETCHING...</span></div>
+        </div>
+    </header>
+
+    <div class="terminal-grid" id="signal-container">
+        <div style="color: var(--text-muted);">> ESTABLISHING CONNECTION TO SIGNAL STREAM...</div>
+    </div>
+
+    <script>
+        async function fetchSignals() {
+            try {
+                // Mengambil data JSON dengan parameter waktu agar tidak ter-cache
+                const response = await fetch('signals.json?t=' + new Date().getTime());
+                if (!response.ok) throw new Error('Data stream unavailable');
+                
+                const data = await response.json();
+                
+                document.getElementById('last-update').innerText = data.updated_at ? data.updated_at.toUpperCase() : 'UNKNOWN';
+                document.getElementById('last-update').classList.remove('blinking');
+                
+                const container = document.getElementById('signal-container');
+                container.innerHTML = ''; 
+                
+                if (!data.active_signals || data.active_signals.length === 0) {
+                    container.innerHTML = '<div style="color: var(--text-muted);">> NO ACTIVE EXECUTION PARAMETERS DETECTED. SYSTEM STANDBY.</div>';
+                    return;
+                }
+
+                data.active_signals.forEach(sig => {
+                    const isBuy = sig.type.includes('BUY');
+                    const typeClass = isBuy ? 'type-buy' : 'type-sell';
+                    
+                    const card = document.createElement('div');
+                    card.className = 'signal-card';
+                    card.innerHTML = `
+                        <div class="signal-header">
+                            <span class="instrument">${sig.pair}</span>
+                            <span class="${typeClass}">[ ${sig.type} ]</span>
+                        </div>
+                        <div class="data-row"><span class="label">ENTRY (RAW)</span> <span class="value">${sig.entry}</span></div>
+                        <div class="data-row"><span class="label">SL (PROTECTED)</span> <span class="value">${sig.sl}</span></div>
+                        <div class="data-row"><span class="label">TP (TARGET)</span> <span class="value">${sig.tp}</span></div>
+                        <div class="data-row"><span class="label">R/R RATIO</span> <span class="value val-gold">${sig.rr}</span></div>
+                        <div class="logic-log">> ${sig.strategy}</div>
+                    `;
+                    container.appendChild(card);
+                });
+            } catch (error) {
+                document.getElementById('signal-container').innerHTML = `<div style="color: var(--sell-color);">> CONNECTION ERROR: ${error.message}</div>`;
+            }
+        }
+
+        fetchSignals();
+        setInterval(fetchSignals, 15000); // Sinkronisasi otomatis setiap 15 detik
+    </script>
+</body>
+</html>
