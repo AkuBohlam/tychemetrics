@@ -1,0 +1,41 @@
+name: Weekly History Cleanup
+
+on:
+  schedule:
+    # Berjalan setiap hari Minggu pukul 00:00 UTC (07:00 WIB) - Pasar Libur
+    - cron: '0 0 * * 0'
+  workflow_dispatch: # Mengizinkan Anda menekan tombol sapu manual jika dibutuhkan
+
+jobs:
+  squash-history:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Izin krusial untuk menimpa riwayat secara paksa
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Flatten Commit History
+        run: |
+          # 1. Menyamar sebagai identitas bot resmi GitHub
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          
+          # 2. Membuat cabang baru yang "yatim piatu" (tanpa masa lalu/riwayat)
+          git checkout --orphan temp_branch
+          
+          # 3. Mendaftarkan seluruh file dengan kondisi paling mutakhir
+          git add -A
+          
+          # 4. Meresmikan satu riwayat tunggal baru
+          git commit -m "🧹 Auto-Maintenance: Weekly commit history flattened"
+          
+          # 5. Membunuh cabang 'main' lama yang bengkak
+          git branch -D main
+          
+          # 6. Mengubah identitas cabang bersih ini menjadi 'main' yang baru
+          git branch -m main
+          
+          # 7. Menimpa secara paksa ke server (Force Push)
+          git push -f origin main
